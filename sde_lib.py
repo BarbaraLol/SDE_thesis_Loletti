@@ -384,22 +384,15 @@ class LinearSDE(SDE):
         exp_neg_At = expm(-A_np * t_val)
         mean_i = exp_neg_At @ x0
         
-        # Covariance: NUMERICAL INTEGRATION (correct but slow)
-        n_points = 200  # Increase for more accuracy
-        s_vals = np.linspace(0, t_val, n_points)
-        Sigma_t = np.zeros((2, 2))
-        ds = t_val / (n_points - 1) if n_points > 1 else t_val
+        # Covariance: ANALYTICAL FORMULA (exact and fast)
+        # Σ(t) = Σ_∞ - exp(-At) Σ_∞ exp(-A^T t)
+        exp_neg_ATt = expm(-A_np.T * t_val)
         
-        for s in s_vals:
-          # KEY FIX: Use (t-s) not s
-          exp_neg_A_tms = expm(-A_np * (t_val - s))
-          integrand = exp_neg_A_tms @ exp_neg_A_tms.T
-          Sigma_t += integrand * ds
-        
-        Sigma_t *= epsilon_sq
+        Sigma_t = self.Sigma_inf - exp_neg_At @ self.Sigma_inf @ exp_neg_ATt
         
         # Extract standard deviations
         variances = np.diag(Sigma_t)
+        # Ensure numerical stability
         variances = np.maximum(variances, 1e-8)
         std_i = np.sqrt(variances)
       
