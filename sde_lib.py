@@ -255,10 +255,10 @@ class VESDE(SDE):
 
 
 class LinearSDE(SDE):
-  """Linear SDE: dx_t = -Ax_t dt + ε dw_t
+  """Linear SDE: dx_t = -Ax_t dt + espilon dw_t
   
   This implements a linear SDE with time-independent drift matrix A and 
-  diffusion coefficient ε. The non-equilibrium condition [A, A^T] ≠ 0 
+  diffusion coefficient espilon. The non-equilibrium condition [A, A^T] != 0 
   ensures the system doesn't satisfy detailed balance.
   
   Args:
@@ -278,7 +278,7 @@ class LinearSDE(SDE):
     self.A_np = A_matrix.astype(np.float64)  # Use float64 for numerical stability
     self.epsilon = epsilon
     
-    # Verify non-equilibrium condition: [A, A^T] ≠ 0
+    # Verify non-equilibrium condition: [A, A^T] != 0
     A_tensor = torch.tensor(A_matrix, dtype=torch.float32)
     commutator = torch.matmul(A_tensor, A_tensor.T) - torch.matmul(A_tensor.T, A_tensor)
     is_non_equilibrium = not torch.allclose(commutator, torch.zeros_like(commutator), atol=1e-6)
@@ -288,8 +288,7 @@ class LinearSDE(SDE):
     else:
         print(f"Non-equilibrium verified: [A, A^T] has norm {torch.norm(commutator):.4f}")
     
-    # Pre-compute steady-state covariance Σ_∞
-    # Solves: A Σ_∞ + Σ_∞ A^T = ε² I
+    # Pre-compute steady-state covariance 
     try:
         self.Sigma_inf = solve_continuous_lyapunov(self.A_np, self.epsilon**2 * np.eye(2))
         
@@ -305,12 +304,12 @@ class LinearSDE(SDE):
         if residual_norm > 1e-6:
             print(f"Warning: Lyapunov equation residual = {residual_norm:.2e}")
         
-        print(f"Steady-state covariance Σ_∞:\n{self.Sigma_inf}")
+        print(f"Steady-state covariance Sum_(infinity):\n{self.Sigma_inf}")
         print(f"Eigenvalues: {eigvals}")
         
     except Exception as e:
         print(f"Error solving Lyapunov equation: {e}")
-        print("Using fallback: Σ_∞ = ε² I")
+        print("Using fallback: S_inf = espilon^2 I")
         self.Sigma_inf = (self.epsilon**2) * np.eye(2)
 
   @property
@@ -319,9 +318,9 @@ class LinearSDE(SDE):
     return 1.0
 
   def sde(self, x, t):
-    """SDE dynamics: dx_t = -Ax_t dt + ε dw_t
+    """SDE dynamics: dx_t = -Ax_t dt + espilon dw_t
     
-    Since A and ε are time-independent, the drift and diffusion
+    Since A and espilon are time-independent, the drift and diffusion
     don't explicitly depend on time t.
     
     Args:
@@ -330,7 +329,7 @@ class LinearSDE(SDE):
 
     Returns:
       drift: -Ax in same format as x
-      diffusion: ε for each batch element
+      diffusion: espilon for each batch element
     """
     batch_size = x.shape[0]
     A = self.A.to(x.device)
@@ -342,25 +341,23 @@ class LinearSDE(SDE):
     drift_flat = -torch.matmul(x_flat, A.T)  # (batch, 2)
     drift = drift_flat.view(x.shape)
     
-    # Diffusion: ε (constant)
+    # Diffusion: espilon (constant)
     diffusion = torch.full((batch_size,), self.epsilon, device=x.device)
     
     return drift, diffusion
 
   def marginal_prob(self, x, t):
     """
-    Exact marginal probability p_t(x|x_0) for dx_t = -Ax_t dt + ε dw_t
+    Exact marginal probability p_t(x|x_0) for dx_t = -Ax_t dt + espilon dw_t
     
-    For time-independent A and ε, the solution is:
-      x_t = exp(-At) x_0 + ∫₀ᵗ exp(-A(t-s)) ε dw_s
+    For time-independent A and espilon, the solution is:
+      x_t = exp(-At) x_0 + ∫ exp(-A(t-s)) espilon dw_s
     
     Therefore:
       Mean: μ(t) = exp(-At) x_0
-      Covariance: Σ(t) = Σ_∞ - exp(-At) Σ_∞ exp(-A^T t)
+      Covariance: Sigma(t) = S_inf - exp(-A*t) S_inf * exp(-(A^T)*t)
     
-    where Σ_∞ satisfies A Σ_∞ + Σ_∞ A^T = ε² I.
-    
-    This formula is EXACT for time-independent linear SDEs.
+    where S_inf satisfies A S_inf + S_inf A^T = espilon^2 I.
     """
     batch_size = x.shape[0]
     A_np = self.A_np
@@ -384,8 +381,8 @@ class LinearSDE(SDE):
         exp_neg_At = expm(-A_np * t_val)
         mean_i = exp_neg_At @ x0
         
-        # Covariance: ANALYTICAL FORMULA (exact and fast)
-        # Σ(t) = Σ_∞ - exp(-At) Σ_∞ exp(-A^T t)
+        # Covariance
+        # Sigma(t) = S_inf {- exp(-At)} S_inf {exp(-A^T t)}
         exp_neg_ATt = expm(-A_np.T * t_val)
         
         Sigma_t = self.Sigma_inf - exp_neg_At @ self.Sigma_inf @ exp_neg_ATt
@@ -410,19 +407,19 @@ class LinearSDE(SDE):
   def prior_sampling(self, shape):
     """Generate samples from the prior distribution p_T(x).
     
-    At t=T, the distribution approaches the steady state N(0, Σ_∞).
-    For non-equilibrium systems, Σ_∞ is NOT isotropic.
+    At t=T, the distribution approaches the steady state N(0, S_inf).
+    For non-equilibrium systems, S_inf is NOT isotropic.
     
     Args:
       shape: desired shape (batch_size, 2, H, W)
       
     Returns:
-      samples from N(0, Σ_∞)
+      samples from N(0, S_inf)
     """
     batch_size = shape[0]
     
-    # Sample from N(0, Σ_∞) using Cholesky decomposition
-    # Σ_∞ = L L^T, so if z ~ N(0,I), then Lz ~ N(0, Σ_∞)
+    # Sample from N(0, S_inf) using Cholesky decomposition
+    # S_inf = L L^T, so if z ~ N(0,I), then Lz ~ N(0, S_inf)
     try:
         L = np.linalg.cholesky(self.Sigma_inf)
         z = torch.randn(batch_size, 2)
@@ -443,8 +440,8 @@ class LinearSDE(SDE):
   def prior_logp(self, z):
     """Compute log-density of the prior distribution.
     
-    For z ~ N(0, Σ_∞):
-      log p(z) = -0.5 * z^T Σ_∞^{-1} z - 0.5 * log|2π Σ_∞|
+    For z ~ N(0, S_inf):
+      log p(z) = -0.5 * z^T S_inf^{-1} z - 0.5 * log|2π S_inf|
 
     Args:
       z: latent code
@@ -454,7 +451,7 @@ class LinearSDE(SDE):
     """
     z_flat = z.view(z.shape[0], 2)
     
-    # Compute Σ_∞^{-1}
+    # Compute S_inf^{-1}
     try:
         Sigma_inv = torch.tensor(
             np.linalg.inv(self.Sigma_inf), 
@@ -465,10 +462,10 @@ class LinearSDE(SDE):
         print("Warning: Matrix inversion failed, using identity")
         Sigma_inv = torch.eye(2, device=z.device) / (self.epsilon**2)
     
-    # Quadratic form: z^T Σ^{-1} z
+    # Quadratic form: z^T Singma^{-1} z
     quadratic = torch.sum(z_flat * torch.matmul(z_flat, Sigma_inv), dim=1)
     
-    # Log determinant term: log|2π Σ_∞|
+    # Log determinant term: log|2pi S_inf|
     sign, logdet = np.linalg.slogdet(2 * np.pi * self.Sigma_inf)
     if sign <= 0:
         print("Warning: Determinant not positive, using fallback")
@@ -482,7 +479,7 @@ class LinearSDE(SDE):
     """Euler-Maruyama discretization.
     
     Converts SDE to discrete-time update:
-      x_{i+1} = x_i + f_i dt + g_i √dt z_i
+      x_{i+1} = x_i + f_i dt + g_i sqrt(dt) z_i
     
     where z_i ~ N(0,1).
     
@@ -506,12 +503,12 @@ class LinearSDE(SDE):
     """Create the reverse-time SDE/ODE for sampling.
     
     The reverse SDE is:
-      dx = [f(x,t) - g(t)² ∇_x log p_t(x)] dt + g(t) dw  (SDE)
-      dx = [f(x,t) - 0.5 g(t)² ∇_x log p_t(x)] dt        (ODE)
+      dx = [f(x,t) - g(t)^2 ∇_x log p_t(x)] dt + g(t) dw  (SDE)
+      dx = [f(x,t) - 0.5 g(t)^2 ∇_x log p_t(x)] dt        (ODE)
     
-    For our forward SDE dx_t = -Ax_t dt + ε dw_t:
+    For our forward SDE dx_t = -Ax_t dt + epsilon dw_t:
       f(x,t) = -Ax
-      g(t) = ε
+      g(t) = epsilon
     
     Args:
       score_fn: trained score model that estimates ∇_x log p_t(x)
@@ -546,10 +543,10 @@ class LinearSDE(SDE):
       def sde(self, x, t):
         """
         IMPORTANT: In reverse sampling, t represents the current time
-        going from T → 0, but we need the forward drift at this time.
+        going from T -> 0, but we need the forward drift at this time.
         
-        The forward SDE at time t is: dx = -Ax dt + ε dw
-        The reverse SDE at time t is: dx = [-Ax - g²∇log p_t(x)] dt + g dw
+        The forward SDE at time t is: dx = -Ax dt + epsilon dw
+        The reverse SDE at time t is: dx = [-Ax - g^2∇log p_t(x)] dt + g dw
         
         Note: Some implementations use "reverse time" τ = T - t, but
         the score function should receive the actual forward time.
@@ -564,9 +561,9 @@ class LinearSDE(SDE):
         score_coefficient = 0.5 if self.probability_flow else 1.0
         diffusion_squared = diffusion[:, None, None, None] ** 2
         
-        # KEY: reverse_drift = drift - g² * score
-        # Since score = -Σ^(-1)(x-μ), this becomes:
-        # reverse_drift = -Ax - g²(-Σ^(-1)(x-μ)) = -Ax + g²Σ^(-1)(x-μ)
+        # KEY: reverse_drift = drift - g^2 * score
+        # Since score = -Sigma^(-1)(x-mi), this becomes:
+        # reverse_drift = -Ax - g^2(-Sigma^(-1)(x-mi)) = -Ax + g^2*Sigmag^(-1)(x-mi)
         reverse_drift = drift - diffusion_squared * score_coefficient * score
         
         reverse_diffusion = torch.zeros_like(diffusion) if self.probability_flow else diffusion

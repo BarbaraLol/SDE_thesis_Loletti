@@ -9,9 +9,9 @@ def get_config():
    
    # Training
    config.training = training = ml_collections.ConfigDict()
-   training.batch_size = 128
-   training.n_iters = 50000
-   training.snapshot_freq = 5000
+   training.batch_size = 256
+   training.n_iters = 250000
+   training.snapshot_freq = 10000
    training.log_freq = 100
    training.eval_freq = 1000
    training.reduce_mean = True
@@ -40,15 +40,15 @@ def get_config():
    model.num_scales = 1000 
    model.beta_min = 0.1
    model.beta_max = 20
-   model.dropout = 0.1
+   model.dropout = 0.05
    model.embedding_type = 'fourier'
    model.scale_by_sigma = True
    model.ema_rate = 0.999
    model.normalization = 'GroupNorm'
    model.nonlinearity = 'swish'
-   model.nf = 128  # Number of features for MLP
+   model.nf = 256  # Number of features for MLP
    model.ch_mult = (1, 2, 2, 2)  # Not used by MLP but kept for compatibility
-   model.num_res_blocks = 4
+   model.num_res_blocks = 8
    model.attn_resolutions = (16,)
    model.resamp_with_conv = True
    model.conditional = True
@@ -72,11 +72,11 @@ def get_config():
    config.optim = optim = ml_collections.ConfigDict()
    optim.weight_decay = 0
    optim.optimizer = 'Adam'
-   optim.lr = 2e-4
+   optim.lr = 5e-4
    optim.beta1 = 0.9
    optim.eps = 1e-8
-   optim.warmup = 0
-   optim.grad_clip = 0.1 # From 1.0 to 0.1 for more stability
+   optim.warmup = 5000
+   optim.grad_clip = 1 # From 1.0 to 0.1 for more stability
    
    # Sampling
    config.sampling = sampling = ml_collections.ConfigDict()
@@ -91,7 +91,7 @@ def get_config():
    # Evaluation
    config.eval = evaluate = ml_collections.ConfigDict()
    evaluate.begin_ckpt = 1
-   evaluate.end_ckpt = 10
+   evaluate.end_ckpt = 20
    evaluate.batch_size = 1000
    evaluate.enable_sampling = True
    evaluate.num_samples = 5000
