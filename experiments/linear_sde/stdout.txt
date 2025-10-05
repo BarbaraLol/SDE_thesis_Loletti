@@ -1,0 +1,10 @@
+WARNING - utils.py - 2025-10-05 11:32:27,465 - No checkpoint found at experiments/linear_sde/checkpoints-meta/checkpoint.pth. Returned the same state as input
+INFO - xla_bridge.py - 2025-10-05 11:32:27,498 - Unable to initialize backend 'tpu_driver': NOT_FOUND: Unable to find driver in registry given worker: 
+INFO - xla_bridge.py - 2025-10-05 11:32:27,503 - Unable to initialize backend 'gpu': NOT_FOUND: Could not find registered platform with name: "cuda". Available platform names are: Interpreter Host
+INFO - xla_bridge.py - 2025-10-05 11:32:27,503 - Unable to initialize backend 'tpu': INVALID_ARGUMENT: TpuPlatform is not available.
+WARNING - xla_bridge.py - 2025-10-05 11:32:27,503 - No GPU/TPU found, falling back to CPU. (Set TF_CPP_MIN_LOG_LEVEL=0 and rerun for more info.)
+INFO - run_lib.py - 2025-10-05 11:32:27,540 - Starting training loop at step 0.
+INFO - run_lib.py - 2025-10-05 11:32:29,064 - step: 0, training_loss: 1.08960e+00
+INFO - run_lib.py - 2025-10-05 11:32:30,420 - step: 0, eval_loss: 9.42049e-01
+INFO - run_lib.py - 2025-10-05 11:34:47,538 - step: 100, training_loss: 1.02989e+00
+INFO - run_lib.py - 2025-10-05 11:37:04,461 - step: 200, training_loss: 8.59334e-01

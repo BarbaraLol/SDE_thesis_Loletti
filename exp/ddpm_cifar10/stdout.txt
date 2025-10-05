@@ -1,0 +1,54 @@
+WARNING - utils.py - 2025-09-08 15:33:19,651 - No checkpoint found at ./exp/ddpm_cifar10/checkpoints-meta/checkpoint.pth. Returned the same state as input
+INFO - xla_bridge.py - 2025-09-08 15:33:19,655 - Unable to initialize backend 'tpu_driver': NOT_FOUND: Unable to find driver in registry given worker: 
+INFO - xla_bridge.py - 2025-09-08 15:33:19,655 - Unable to initialize backend 'gpu': NOT_FOUND: Could not find registered platform with name: "cuda". Available platform names are: Interpreter Host
+INFO - xla_bridge.py - 2025-09-08 15:33:19,655 - Unable to initialize backend 'tpu': INVALID_ARGUMENT: TpuPlatform is not available.
+WARNING - xla_bridge.py - 2025-09-08 15:33:19,656 - No GPU/TPU found, falling back to CPU. (Set TF_CPP_MIN_LOG_LEVEL=0 and rerun for more info.)
+INFO - dataset_info.py - 2025-09-08 15:33:19,851 - Load pre-computed DatasetInfo (eg: splits, num examples,...) from GCS: cifar10/3.0.2
+INFO - dataset_info.py - 2025-09-08 15:33:20,506 - Load dataset info from /tmp/tmp75seuetgtfds
+INFO - dataset_info.py - 2025-09-08 15:33:20,509 - Field info.citation from disk and from code do not match. Keeping the one from code.
+INFO - dataset_builder.py - 2025-09-08 15:33:20,510 - Generating dataset cifar10 (/home/barbara/tensorflow_datasets/cifar10/3.0.2)
+INFO - download_manager.py - 2025-09-08 15:33:20,729 - Downloading https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz into /home/barbara/tensorflow_datasets/downloads/cs.toronto.edu_kriz_cifar-10-binaryODHPtIjLh3oLcXirEISTO7dkzyKjRCuol6lV8Wc6C7s.tar.gz.tmp.b61253e03f7443c5aa7ebf69cb2f13b1...
+INFO - dataset_builder.py - 2025-09-08 15:33:29,581 - Generating split train
+INFO - tfrecords_writer.py - 2025-09-08 15:33:42,700 - Done writing /home/barbara/tensorflow_datasets/cifar10/3.0.2.incompleteBZYJWW/cifar10-train.tfrecord. Shard lengths: [50000]
+INFO - dataset_builder.py - 2025-09-08 15:33:42,717 - Generating split test
+INFO - tfrecords_writer.py - 2025-09-08 15:33:45,286 - Done writing /home/barbara/tensorflow_datasets/cifar10/3.0.2.incompleteBZYJWW/cifar10-test.tfrecord. Shard lengths: [10000]
+INFO - dataset_builder.py - 2025-09-08 15:33:45,295 - Skipping computing stats for mode ComputeStatsMode.AUTO.
+INFO - dataset_builder.py - 2025-09-08 15:33:45,296 - Constructing tf.data.Dataset for split train, from /home/barbara/tensorflow_datasets/cifar10/3.0.2
+INFO - dataset_builder.py - 2025-09-08 15:33:45,389 - Reusing dataset cifar10 (/home/barbara/tensorflow_datasets/cifar10/3.0.2)
+INFO - dataset_builder.py - 2025-09-08 15:33:45,389 - Constructing tf.data.Dataset for split test, from /home/barbara/tensorflow_datasets/cifar10/3.0.2
+INFO - run_lib.py - 2025-09-08 15:33:45,448 - Starting training loop at step 0.
+INFO - run_lib.py - 2025-09-08 15:33:54,207 - step: 0, training_loss: 9.97305e-01
+INFO - run_lib.py - 2025-09-08 15:33:57,108 - step: 0, eval_loss: 1.00024e+00
+INFO - run_lib.py - 2025-09-08 15:40:37,159 - step: 50, training_loss: 9.90828e-01
+INFO - run_lib.py - 2025-09-08 15:47:04,850 - step: 100, training_loss: 9.56843e-01
+INFO - run_lib.py - 2025-09-08 15:47:07,081 - step: 100, eval_loss: 9.65558e-01
+INFO - run_lib.py - 2025-09-08 15:53:41,984 - step: 150, training_loss: 8.91500e-01
+INFO - run_lib.py - 2025-09-08 16:00:39,237 - step: 200, training_loss: 8.08490e-01
+INFO - run_lib.py - 2025-09-08 16:00:41,409 - step: 200, eval_loss: 8.40358e-01
+INFO - run_lib.py - 2025-09-08 16:06:58,903 - step: 250, training_loss: 7.09036e-01
+INFO - run_lib.py - 2025-09-09 09:50:33,371 - step: 300, training_loss: 5.96219e-01
+INFO - run_lib.py - 2025-09-09 09:50:35,591 - step: 300, eval_loss: 6.54059e-01
+INFO - run_lib.py - 2025-09-09 09:57:25,011 - step: 350, training_loss: 4.84277e-01
+INFO - run_lib.py - 2025-09-09 10:04:07,301 - step: 400, training_loss: 3.69763e-01
+INFO - run_lib.py - 2025-09-09 10:04:09,644 - step: 400, eval_loss: 4.50151e-01
+INFO - run_lib.py - 2025-09-09 10:10:41,168 - step: 450, training_loss: 2.73757e-01
+INFO - run_lib.py - 2025-09-09 10:17:14,454 - step: 500, training_loss: 1.67989e-01
+INFO - run_lib.py - 2025-09-09 10:17:16,741 - step: 500, eval_loss: 2.50184e-01
+INFO - run_lib.py - 2025-09-09 10:23:44,484 - step: 550, training_loss: 9.96260e-02
+INFO - run_lib.py - 2025-09-09 10:30:18,816 - step: 600, training_loss: 7.01246e-02
+INFO - run_lib.py - 2025-09-09 10:30:21,149 - step: 600, eval_loss: 9.98799e-02
+INFO - run_lib.py - 2025-09-09 10:37:00,345 - step: 650, training_loss: 3.56543e-02
+INFO - run_lib.py - 2025-09-09 10:43:29,070 - step: 700, training_loss: 4.08439e-02
+INFO - run_lib.py - 2025-09-09 10:43:31,302 - step: 700, eval_loss: 5.34265e-02
+INFO - run_lib.py - 2025-09-09 10:49:58,173 - step: 750, training_loss: 5.80453e-02
+INFO - run_lib.py - 2025-09-09 10:56:20,607 - step: 800, training_loss: 3.81643e-02
+INFO - run_lib.py - 2025-09-09 10:56:22,889 - step: 800, eval_loss: 5.93409e-02
+INFO - run_lib.py - 2025-09-09 11:02:42,092 - step: 850, training_loss: 3.53897e-02
+INFO - run_lib.py - 2025-09-09 11:09:06,816 - step: 900, training_loss: 4.30727e-02
+INFO - run_lib.py - 2025-09-09 11:09:09,088 - step: 900, eval_loss: 2.74007e-02
+INFO - run_lib.py - 2025-09-09 11:15:54,666 - step: 950, training_loss: 3.90406e-02
+INFO - run_lib.py - 2025-09-09 11:22:19,617 - step: 1000, training_loss: 3.66983e-02
+INFO - run_lib.py - 2025-09-09 11:22:21,856 - step: 1000, eval_loss: 3.35153e-02
+INFO - run_lib.py - 2025-09-09 11:28:49,323 - step: 1050, training_loss: 5.62201e-02
+INFO - run_lib.py - 2025-09-09 11:35:18,497 - step: 1100, training_loss: 4.26897e-02
+INFO - run_lib.py - 2025-09-09 11:35:20,812 - step: 1100, eval_loss: 4.19382e-02
