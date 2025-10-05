@@ -99,6 +99,6 @@ def get_config():
    evaluate.enable_bpd = False
    evaluate.bpd_dataset = 'test'
    # Device
-   # config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-   config.device = 'cpu'
+   config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+   # config.device = 'cpu'
    return config

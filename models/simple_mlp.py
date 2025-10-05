@@ -10,7 +10,7 @@ class GaussianFourierProjection(nn.Module):
     
     def forward(self, x):
         x_proj = x[:, None] * self.W[None, :] * 2 * np.pi
-        return torch.cat([torcha.sin(x_proj), torch.cos(x_proj)], dim=-1)
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
 
 class SimpleMLP(nn.Module):
     def __init__(self, config):
