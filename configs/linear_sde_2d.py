@@ -9,16 +9,16 @@ def get_config():
    
    # Training
    config.training = training = ml_collections.ConfigDict()
-   training.batch_size = 256
-   training.n_iters = 250000
-   training.snapshot_freq = 10000
-   training.log_freq = 100
-   training.eval_freq = 1000
+   training.batch_size = 512 # 256
+   training.n_iters = 500000 # 250000
+   training.snapshot_freq = 25000 # 10000
+   training.log_freq = 500 # 100
+   training.eval_freq = 2500 # 1000
    training.reduce_mean = True
    training.likelihood_weighting = False
    training.continuous = True
    training.sde = 'linear'  # Use LinearSDE
-   training.snapshot_freq_for_preemption = 5000
+   training.snapshot_freq_for_preemption = 10000 # 5000
    training.snapshot_sampling = True
    
    # Data configuration
@@ -40,7 +40,7 @@ def get_config():
    model.num_scales = 1000 
    model.beta_min = 0.1
    model.beta_max = 20
-   model.dropout = 0.05
+   model.dropout = 0.0 # form 0.05 to no dropout for full capacity
    model.embedding_type = 'fourier'
    model.scale_by_sigma = True
    model.ema_rate = 0.999
@@ -72,11 +72,11 @@ def get_config():
    config.optim = optim = ml_collections.ConfigDict()
    optim.weight_decay = 0
    optim.optimizer = 'Adam'
-   optim.lr = 5e-4
+   optim.lr = 2e-3 # from 5e-4 (-> higher learning rate)
    optim.beta1 = 0.9
    optim.eps = 1e-8
-   optim.warmup = 5000
-   optim.grad_clip = 1 # From 1.0 to 0.1 for more stability
+   optim.warmup = 10000
+   optim.grad_clip = 5.0 # generous clipping
    
    # Sampling
    config.sampling = sampling = ml_collections.ConfigDict()
@@ -99,6 +99,6 @@ def get_config():
    evaluate.enable_bpd = False
    evaluate.bpd_dataset = 'test'
    # Device
-   config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-   # config.device = 'cpu'
+   # config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+   config.device = 'cpu'
    return config

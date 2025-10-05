@@ -20,27 +20,60 @@ class SimpleMLP(nn.Module):
         # Time embedding
         if config.model.embedding_type == 'fourier':
             self.time_embed = GaussianFourierProjection(
-                embedding_size=config.model.nf, scale=config.model.fourier_scale
+                embedding_size=config.model.nf * 2, # make it twice larger 
+                scale=config.model.fourier_scale
             )
-            embed_dim = 2 * config.model.nf
+            embed_dim = 4 * config.model.nf
         else:
-            self.time_embed = nn.Linear(1, config.model.nf)
-            embed_dim = config.model.nf
+            self.time_embed = nn.Sequential(
+                nn.Linear(1, config.model.nf * 2),
+                nn.SiLU(),
+                nn.Linear(config.model.nf * 2, config.model.nf * 2)
+            )
+            embed_dim = config.model.nf * 2
             
         input_dim = 2
-        hidden_dim = config.model.nf
+        hidden_dim = config.model.nf * 2
         
-        self.input_layer = nn.Linear(input_dim, hidden_dim)
-        
+        # self.input_layer = nn.Linear(input_dim, hidden_dim)
+        # Better input processing with normalization
+        self.input_layer = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),  # Add normalization
+            nn.SiLU()  # Better than ReLU
+        )
+                
+        # self.hidden_layers = nn.ModuleList([
+        #     nn.Sequential(
+        #         nn.Linear(hidden_dim + embed_dim, hidden_dim),
+        #         nn.SiLU(),
+        #         nn.Dropout(config.model.dropout)
+        #     ) for _ in range(config.model.num_res_blocks)
+        # ])
+        # Modifying each layer so they get time conditioning + wider + normalized
         self.hidden_layers = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(hidden_dim + embed_dim, hidden_dim),
+                nn.Linear(hidden_dim + embed_dim, hidden_dim * 2),  # Expand
+                nn.LayerNorm(hidden_dim * 2),
                 nn.SiLU(),
-                nn.Dropout(config.model.dropout)
+                nn.Dropout(config.model.dropout),
+                nn.Linear(hidden_dim * 2, hidden_dim),  # Contract back
+                nn.LayerNorm(hidden_dim),
+                nn.SiLU()
             ) for _ in range(config.model.num_res_blocks)
         ])
         
-        self.output_layer = nn.Linear(hidden_dim, 2)
+        # self.output_layer = nn.Linear(hidden_dim, 2)
+        # Output with better initialization
+        self.output_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.SiLU(),
+            nn.Linear(hidden_dim // 2, 2)
+        )
+        
+        # Initialize output layer to near-zero for stability
+        nn.init.zeros_(self.output_layer[-1].weight)
+        nn.init.zeros_(self.output_layer[-1].bias)
         
     def forward(self, x, t):
         batch_size = x.shape[0]
@@ -64,13 +97,15 @@ class SimpleMLP(nn.Module):
             time_emb = time_emb.view(batch_size, -1)
         
         # Forward pass
-        h = torch.relu(self.input_layer(x_flat))  # (batch_size, hidden_dim)
+        # h = torch.relu(self.input_layer(x_flat))  # (batch_size, hidden_dim)
+        h = self.input_layer(x_flat) # without residual connections
         
         for layer in self.hidden_layers:
             # Debug prints to understand tensor shapes
             # print(f"h shape: {h.shape}, time_emb shape: {time_emb.shape}")
             h_with_time = torch.cat([h, time_emb], dim=1)  # (batch_size, hidden_dim + embed_dim)
-            h = h + layer(h_with_time)  # Residual connection
+            # h = h + layer(h_with_time)  # Residual connection
+            h = layer(h_with_time) # no residual
             
         score = self.output_layer(h)  # (batch_size, 2)
         
