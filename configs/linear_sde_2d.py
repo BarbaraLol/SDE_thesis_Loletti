@@ -1,4 +1,4 @@
-"""Fixed configuration file for Linear SDE 2D training - configs/linear_sde_2d.py"""
+"""Configuration file for Linear SDE 2D training - configs/linear_sde_2d.py"""
 
 import ml_collections
 import torch
