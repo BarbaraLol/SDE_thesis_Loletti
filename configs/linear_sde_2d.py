@@ -9,13 +9,13 @@ def get_config():
    
    # Training
    config.training = training = ml_collections.ConfigDict()
-   training.batch_size = 512 # 256
+   training.batch_size = 128 # 256
    training.n_iters = 500000 # 250000
    training.snapshot_freq = 25000 # 10000
    training.log_freq = 500 # 100
    training.eval_freq = 2500 # 1000
    training.reduce_mean = True
-   training.likelihood_weighting = False
+   training.likelihood_weighting = True
    training.continuous = True
    training.sde = 'linear'  # Use LinearSDE
    training.snapshot_freq_for_preemption = 10000 # 5000
@@ -70,13 +70,13 @@ def get_config():
    
    # Optimization
    config.optim = optim = ml_collections.ConfigDict()
-   optim.weight_decay = 0
+   optim.weight_decay = 1e-5
    optim.optimizer = 'Adam'
-   optim.lr = 2e-3 # from 5e-4 (-> higher learning rate)
+   optim.lr = 5e-4 
    optim.beta1 = 0.9
    optim.eps = 1e-8
    optim.warmup = 10000
-   optim.grad_clip = 5.0 # generous clipping
+   optim.grad_clip = 2.0 
    
    # Sampling
    config.sampling = sampling = ml_collections.ConfigDict()

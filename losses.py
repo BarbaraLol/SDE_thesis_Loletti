@@ -46,6 +46,15 @@ def optimization_manager(config):
     if warmup > 0:
       for g in optimizer.param_groups:
         g['lr'] = lr * np.minimum(step / warmup, 1.0)
+
+    ##########################################
+    # Adding exponential decay after warmup
+    if step > warmup:
+      decay_rate = 0.999  # Decay by 0.1% per step
+      for g in optimizer.param_groups:
+        g['lr'] = lr * (decay_rate ** (step - warmup))
+    ##########################################
+    
     if grad_clip >= 0:
       torch.nn.utils.clip_grad_norm_(params, max_norm=grad_clip)
     optimizer.step()
