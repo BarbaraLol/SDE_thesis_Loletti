@@ -99,10 +99,28 @@ def train(config, workdir):
   elif config.training.sde.lower() == 'linear':
     sde = sde_lib.LinearSDE(A_matrix=config.model.A_matrix, epsilon=config.model.epsilon, N=config.model.num_scales)
     sampling_eps = 1e-5
+  # elif config.training.sde.lower() == 'quasipotential':
+  #   # Quasipotential doesn't use SDE, so we set sde = None
+  #   sde = None
+  #   sampling_eps = None
   elif config.training.sde.lower() == 'quasipotential':
-    # Quasipotential doesn't use SDE, so we set sde = None
-    sde = None
+    # Create a dummy SDE for compatibility
+    class DummySDE:
+      T = 1.0
+      N = 1
+      
+      def prior_sampling(self, shape):
+        return torch.randn(*shape)
+          
+      def marginal_prob(self, x, t):
+        return x, torch.ones_like(x)
+          
+      def sde(self, x, t):
+        return torch.zeros_like(x), torch.ones(x.shape[0], device=x.device)
+    
+    sde = DummySDE()
     sampling_eps = None
+
   else:
     raise NotImplementedError(f"SDE {config.training.sde} unknown.")
 

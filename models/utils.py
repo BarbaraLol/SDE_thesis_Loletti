@@ -22,7 +22,6 @@ import sde_lib
 import numpy as np
 from models.simple_mlp import SimpleMLP
 
-
 _MODELS = {}
 
 
@@ -89,14 +88,31 @@ def get_ddpm_params(config):
   }
 
 
+# def create_model(config):
+#   """Create the score model."""
+#   model_name = config.model.name
+#   score_model = get_model(model_name)(config)
+#   score_model = score_model.to(config.device)
+#   # score_model = torch.nn.DataParallel(score_model)
+#   # Only use DataParallel for CUDA devices
+#   # Only use DataParallel for CUDA devices
+#   if config.device != 'cpu' and config.device.startswith('cuda'):
+#     score_model = torch.nn.DataParallel(score_model)
+
+#   return score_model
+
 def create_model(config):
   """Create the score model."""
   model_name = config.model.name
-  score_model = get_model(model_name)(config)
+  
+  # Handle quasipotential model separately to avoid circular import
+  if model_name == 'quasipotential_mlp':
+    from models.quasipotential_mlp import GeneralizedQuasipotential
+    score_model = GeneralizedQuasipotential(config)
+  else:
+    score_model = get_model(model_name)(config)
+    
   score_model = score_model.to(config.device)
-  # score_model = torch.nn.DataParallel(score_model)
-  # Only use DataParallel for CUDA devices
-  # Only use DataParallel for CUDA devices
   if config.device != 'cpu' and config.device.startswith('cuda'):
     score_model = torch.nn.DataParallel(score_model)
 
@@ -147,6 +163,12 @@ def get_score_fn(sde, model, train=False, continuous=False):
   Returns:
     A score function.
   """
+  if sde is None:
+    # For quasipotential, return a dummy score function that returns zeros
+    def score_fn(x, t):
+      return torch.zeros_like(x)
+    return score_fn
+
   model_fn = get_model_fn(model, train=train)
 
   if isinstance(sde, sde_lib.VPSDE) or isinstance(sde, sde_lib.subVPSDE):

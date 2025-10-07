@@ -93,4 +93,10 @@ def get_quasipotential_dataset(config, evaluation=False):
         test_ds, batch_size=batch_size, shuffle=False, drop_last=True
     )
     
-    return train_loader, test_loader, dataset.system
+    # Create infinite iterators
+    def infinite_iterator(loader):
+        while True:
+            for batch in loader:
+                yield batch
+    
+    return infinite_iterator(train_loader), infinite_iterator(test_loader), dataset.system

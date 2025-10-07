@@ -337,86 +337,133 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
 
   return step_fn
 
-def get_quasipotential_step_fn(config, train, optimize_fn=None):
-  """Create training/evaluation step for quasipotential learning"""
+# def get_quasipotential_step_fn(config, train, optimize_fn=None):
+#   """Create training/evaluation step for quasipotential learning"""
+  
+#   def loss_fn(model, batch):
+#     """Compute quasipotential loss"""
+#     x = batch['x']  # (batch, dim, 1, 1)
+#     x_next = batch['x_next']  # (batch, dim, 1, 1)
+#     dt = batch['dt']  # scalar or tensor
+    
+#     # Flatten for computation
+#     x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
+#     x_next_flat = x_next.squeeze(-1).squeeze(-1)  # (batch, dim)
+    
+#     # Ensure dt is a scalar (not a tensor per batch element)
+#     if isinstance(dt, torch.Tensor):
+#       if dt.numel() == 1:
+#         dt = dt.item()
+#       else:
+#         # If dt varies per sample, take the first (they should all be same)
+#         dt = dt[0].item() if dt.dim() > 0 else dt.item()
+    
+#     # Handle DataParallel wrapper
+#     if hasattr(model, 'module'):
+#       actual_model = model.module
+#     else:
+#       actual_model = model
+    
+#     # IMPORTANT: Enable gradients for computing grad_V, even during eval
+#     with torch.set_grad_enabled(True):
+#       # Ensure requires_grad for autograd
+#       x_flat = x_flat.requires_grad_(True)
+      
+#       # Compute vector field from data: f ≈ (x_next - x) / dt
+#       f_data = (x_next_flat - x_flat.detach()) / dt
+      
+#       # Get model prediction - pass x with proper shape
+#       x_input = x_flat.unsqueeze(-1).unsqueeze(-1)
+      
+#       # Get predictions
+#       f_pred_output = actual_model(x_input, None)  # Returns (batch, dim, 1, 1)
+#       f_pred = f_pred_output.squeeze(-1).squeeze(-1)  # (batch, dim)
+      
+#       # Dynamics reconstruction loss
+#       loss_dyn = torch.mean((f_pred - f_data)**2)
+      
+#       # Orthogonality loss
+#       # Need to recompute grad_v and g with the same x_flat that has requires_grad
+#       grad_v = actual_model.compute_grad_V(x_flat)
+#       g = actual_model.compute_g(x_flat)
+#       inner_prod = torch.sum(grad_v * g, dim=1)
+#       loss_orth = torch.mean(inner_prod**2)
+    
+#     # Total loss
+#     lambda_orth = config.model.lambda_orth
+#     loss = loss_dyn + lambda_orth * loss_orth
+    
+#     if train and (torch.isnan(loss) or torch.isinf(loss)):
+#       print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
+#       print(f"x_flat shape: {x_flat.shape}, f_pred shape: {f_pred.shape}, f_data shape: {f_data.shape}")
+    
+#     return loss
+  
+#   def step_fn(state, batch):
+#     """Execute one training/evaluation step"""
+#     model = state['model']
+    
+#     if train:
+#       optimizer = state['optimizer']
+#       optimizer.zero_grad()
+#       loss = loss_fn(model, batch)
+#       loss.backward()
+#       optimize_fn(optimizer, model.parameters(), step=state['step'])
+#       state['step'] += 1
+#       state['ema'].update(model.parameters())
+#     else:
+#       # For evaluation, we still need gradients for computing grad_V
+#       # but we don't update the model
+#       ema = state['ema']
+#       ema.store(model.parameters())
+#       ema.copy_to(model.parameters())
+#       loss = loss_fn(model, batch)  # loss_fn now handles gradients internally
+#       ema.restore(model.parameters())
+    
+#     return loss
+  
+#   return step_fn
+
+def get_quasipotential_loss_fn(config, train, reduce_mean=True):
+  """Improved quasipotential loss function"""
   
   def loss_fn(model, batch):
-    """Compute quasipotential loss"""
     x = batch['x']  # (batch, dim, 1, 1)
     x_next = batch['x_next']  # (batch, dim, 1, 1)
-    dt = batch['dt']  # scalar or tensor
+    dt = batch['dt']  # scalar
     
-    # Flatten for computation
+    # Flatten
     x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
     x_next_flat = x_next.squeeze(-1).squeeze(-1)  # (batch, dim)
     
-    # Ensure dt is a scalar (not a tensor per batch element)
+    # Extract dt value
     if isinstance(dt, torch.Tensor):
-      if dt.numel() == 1:
-        dt = dt.item()
-      else:
-        # If dt varies per sample, take the first (they should all be same)
-        dt = dt[0].item() if dt.dim() > 0 else dt.item()
-    
-    # Ensure requires_grad for autograd
-    x_flat = x_flat.requires_grad_(True)
-    
-    # Compute vector field from data: f ≈ (x_next - x) / dt
-    f_data = (x_next_flat - x_flat.detach()) / dt
-    
-    # Get model prediction - pass x with proper shape
-    x_input = x_flat.unsqueeze(-1).unsqueeze(-1)
-    
-    # Handle DataParallel wrapper
-    if hasattr(model, 'module'):
-      actual_model = model.module
+      dt_val = dt.mean().item()
     else:
-      actual_model = model
+      dt_val = dt
     
-    # Get predictions
-    f_pred_output = actual_model(x_input, None)  # Returns (batch, dim, 1, 1)
-    f_pred = f_pred_output.squeeze(-1).squeeze(-1)  # (batch, dim)
+    # True vector field from data
+    f_true = (x_next_flat - x_flat) / dt_val
+    
+    # Model prediction
+    f_pred = model(x, None).squeeze(-1).squeeze(-1)
     
     # Dynamics reconstruction loss
-    loss_dyn = torch.mean((f_pred - f_data)**2)
+    loss_dyn = torch.mean((f_pred - f_true) ** 2)
     
     # Orthogonality loss
-    # Need to recompute grad_v and g with the same x_flat that has requires_grad
-    grad_v = actual_model.compute_grad_V(x_flat)
-    g = actual_model.compute_g(x_flat)
-    inner_prod = torch.sum(grad_v * g, dim=1)
-    loss_orth = torch.mean(inner_prod**2)
+    with torch.enable_grad():
+      x_flat_requires_grad = x_flat.requires_grad_(True)
+      grad_V = model.compute_grad_V(x_flat_requires_grad)
+      g = model.compute_g(x_flat_requires_grad)
+      
+      inner_product = torch.sum(grad_V * g, dim=1)
+      loss_orth = torch.mean(inner_product ** 2)
     
     # Total loss
     lambda_orth = config.model.lambda_orth
     loss = loss_dyn + lambda_orth * loss_orth
     
-    if train and (torch.isnan(loss) or torch.isinf(loss)):
-      print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
-      print(f"x_flat shape: {x_flat.shape}, f_pred shape: {f_pred.shape}, f_data shape: {f_data.shape}")
-    
     return loss
   
-  def step_fn(state, batch):
-    """Execute one training/evaluation step"""
-    model = state['model']
-    
-    if train:
-      optimizer = state['optimizer']
-      optimizer.zero_grad()
-      loss = loss_fn(model, batch)
-      loss.backward()
-      optimize_fn(optimizer, model.parameters(), step=state['step'])
-      state['step'] += 1
-      state['ema'].update(model.parameters())
-    else:
-      with torch.no_grad():
-        ema = state['ema']
-        ema.store(model.parameters())
-        ema.copy_to(model.parameters())
-        loss = loss_fn(model, batch)
-        ema.restore(model.parameters())
-    
-    return loss
-  
-  return step_fn
+  return loss_fn

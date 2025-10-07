@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from models import utils as mutils
 
-@mutils.register_model(name='quasipotential_mlp')
+# @mutils.register_model(name='quasipotential_mlp')
 class GeneralizedQuasipotential(nn.Module):
     ''' 
         Learn V(x) and g(x) such that f(x) = -∇V(x) + g(x)
@@ -66,8 +66,8 @@ class GeneralizedQuasipotential(nn.Module):
             x = x.requires_grad_(True)
         # x_req_grad = x.requires_grad_(True)
         
-        v = self.compute_V(x_req_grad)
-        grad_v = torch.autograd.grad(v.sum(), x_req_grad, create_graph=True)[0]
+        v = self.compute_V(x)
+        grad_v = torch.autograd.grad(v.sum(), x, create_graph=True)[0]
         return grad_v
     
     def compute_g(self, x):
@@ -99,6 +99,6 @@ class GeneralizedQuasipotential(nn.Module):
         return f
 
 
-def create_model(config):
-    """Factory function to create the model"""
-    return GeneralizedQuasipotential(config)
+# def create_model(config):
+#     """Factory function to create the model"""
+#     return GeneralizedQuasipotential(config)
