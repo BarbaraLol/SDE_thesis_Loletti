@@ -36,29 +36,60 @@ def get_optimizer(config, params):
   return optimizer
 
 
+# def optimization_manager(config):
+#   """Returns an optimize_fn based on `config`."""
+  
+#   # Learning rate schedule with warmup and cosine decay
+#   warmup = config.optim.warmup
+#   total_steps = config.training.n_iters
+#   base_lr = config.optim.lr
+  
+#   def optimization_manager(config):
+#     """Returns an optimize_fn based on `config`."""
+
+#     def optimize_fn(optimizer, params, step, lr=config.optim.lr,
+#                     warmup=config.optim.warmup,
+#                     grad_clip=config.optim.grad_clip):
+#       """Optimizes with warmup and gradient clipping."""
+      
+#       # Apply warmup
+#       if warmup > 0 and step < warmup:
+#         current_lr = lr * (step / warmup)
+#         for g in optimizer.param_groups:
+#           g['lr'] = current_lr
+#       else:
+#         # After warmup, use base learning rate (no decay)
+#         for g in optimizer.param_groups:
+#           g['lr'] = lr
+      
+#       # Gradient clipping
+#       if grad_clip >= 0:
+#         torch.nn.utils.clip_grad_norm_(params, max_norm=grad_clip)
+      
+#       optimizer.step()
+
+#     return optimize_fn
+
 def optimization_manager(config):
   """Returns an optimize_fn based on `config`."""
   
-  # Learning rate schedule with warmup and cosine decay
-  warmup = config.optim.warmup
-  total_steps = config.training.n_iters
-  base_lr = config.optim.lr
-  
-  def get_lr(step):
-    if step < warmup:
-      # Linear warmup
-      return base_lr * (step / warmup)
-    else:
-      # Cosine decay after warmup
-      progress = (step - warmup) / (total_steps - warmup)
-      return base_lr * 0.5 * (1 + np.cos(np.pi * progress))
+  # Get decay type from config (default: none)
+  decay_type = getattr(config.optim, 'lr_decay', 'none')
 
   def optimize_fn(optimizer, params, step, lr=config.optim.lr,
                   warmup=config.optim.warmup,
                   grad_clip=config.optim.grad_clip):
-    """Optimizes with warmup, LR schedule, and gradient clipping."""
+    """Optimizes with warmup, optional decay, and gradient clipping."""
+    
+    # Calculate learning rate
+    if step < warmup and warmup > 0:
+      # Linear warmup
+      current_lr = lr * (step / warmup)
+    else:
+      # After warmup - no decay by default
+      current_lr = lr
+    
     # Set learning rate
-    current_lr = get_lr(step)
     for g in optimizer.param_groups:
       g['lr'] = current_lr
     
@@ -122,8 +153,7 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
     
     # Handle different SDE types for variance scaling
     if isinstance(sde, sde_lib.LinearSDE):
-      # For LinearSDE, std already has the correct shape (batch_size, 2, 1, 1)
-      # We need to ensure proper broadcasting for the noise
+      # For LinearSDE, std has shape (batch_size, 2, 1, 1) - anisotropic noise
       perturbed_data = mean + std * z
     else:
       # For other SDEs (VP, VE), std is 1D and needs broadcasting
@@ -132,28 +162,30 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
     score = score_fn(perturbed_data, t)
 
     if not likelihood_weighting:
-      # For LinearSDE, we need to handle anisotropic noise properly
+      # Standard score matching loss for LinearSDE
       if isinstance(sde, sde_lib.LinearSDE):
-        # z should be scaled by 1/std, but since z ~ N(0,1) and perturbed_data = mean + std*z,
-        # we have: z = (perturbed_data - mean)/std
-        # The score matching loss becomes: ||score * std + z||²
+        # CORRECTED: For anisotropic noise, the target is -z/std
+        # But we need to be careful with the loss formulation
+        # Loss: E[||score * std + z||²]
         losses = torch.square(score * std + z)
       else:
         losses = torch.square(score * std[:, None, None, None] + z)
           
       losses = reduce_op(losses.reshape(losses.shape[0], -1), dim=-1)
     else:
-      g2 = sde.sde(torch.zeros_like(batch), t)[1] ** 2
-      
-      # For LinearSDE with likelihood weighting
+      # Likelihood weighting version
       if isinstance(sde, sde_lib.LinearSDE):
-        # The likelihood weighting version: ||score + z/std||² * g²
-        # Add small epsilon to avoid division by zero
+        # For LinearSDE, we need to weight by g²
+        # g(t) = epsilon (constant in time for your case)
+        g2 = sde.epsilon ** 2
+        # Loss: E[||score + z/std||² * g²]
+        # Need to handle division carefully for anisotropic std
         losses = torch.square(score + z / (std + 1e-8))
+        losses = reduce_op(losses.reshape(losses.shape[0], -1), dim=-1) * g2
       else:
+        g2 = sde.sde(torch.zeros_like(batch), t)[1] ** 2
         losses = torch.square(score + z / (std[:, None, None, None] + 1e-8))
-          
-      losses = reduce_op(losses.reshape(losses.shape[0], -1), dim=-1) * g2
+        losses = reduce_op(losses.reshape(losses.shape[0], -1), dim=-1) * g2
 
     loss = torch.mean(losses)
     return loss

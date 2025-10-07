@@ -375,7 +375,7 @@ class LinearSDE(SDE):
       
       if t_val < 1e-8:
         mean_i = x0
-        std_i = np.full(2, 1e-8)
+        std_i = np.full(2, 1e-6)
       else:
         # Mean: exp(-At) x_0
         exp_neg_At = expm(-A_np * t_val)
@@ -387,10 +387,17 @@ class LinearSDE(SDE):
         
         Sigma_t = self.Sigma_inf - exp_neg_At @ self.Sigma_inf @ exp_neg_ATt
         
+        # Ensure positive definiteness
+        Sigma_t = (Sigma_t + Sigma_t.T) / 2  # Symmetrize
+        eigvals = np.linalg.eigvalsh(Sigma_t)
+        if np.any(eigvals < 1e-6):
+            # Add regularization if needed
+            Sigma_t += np.eye(2) * 1e-6
+
         # Extract standard deviations
         variances = np.diag(Sigma_t)
         # Ensure numerical stability
-        variances = np.maximum(variances, 1e-8)
+        variances = np.maximum(variances, 1e-6)
         std_i = np.sqrt(variances)
       
       means.append(torch.tensor(mean_i, device=x.device, dtype=torch.float32))
