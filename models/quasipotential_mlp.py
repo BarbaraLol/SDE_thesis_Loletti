@@ -6,11 +6,11 @@
 
 import torch
 import torch.nn as nn
-from models import utils
+from models import utils as mutils
 
 @mutils.register_model(name='quasipotential_mlp')
 
-class GeneralizedQuasipotential(Module.nn):
+class GeneralizedQuasipotential(nn.Module):
     ''' 
         Learn V(x) and g(x) such that f(x) = -∇V(x) + g(x)
         Considering the orthogonal constraint ∇V(x)^Tg(x) = 0

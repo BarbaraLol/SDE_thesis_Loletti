@@ -38,29 +38,54 @@ def get_optimizer(config, params):
 
 def optimization_manager(config):
   """Returns an optimize_fn based on `config`."""
+  
+  # Learning rate schedule with warmup and cosine decay
+  warmup = config.optim.warmup
+  total_steps = config.training.n_iters
+  base_lr = config.optim.lr
+  
+  def get_lr(step):
+    if step < warmup:
+      # Linear warmup
+      return base_lr * (step / warmup)
+    else:
+      # Cosine decay after warmup
+      progress = (step - warmup) / (total_steps - warmup)
+      return base_lr * 0.5 * (1 + np.cos(np.pi * progress))
 
   def optimize_fn(optimizer, params, step, lr=config.optim.lr,
                   warmup=config.optim.warmup,
                   grad_clip=config.optim.grad_clip):
-    """Optimizes with warmup and gradient clipping (disabled if negative)."""
-    if warmup > 0:
-      for g in optimizer.param_groups:
-        g['lr'] = lr * np.minimum(step / warmup, 1.0)
-
-    ##########################################
-    # Adding exponential decay after warmup
-    if step > warmup:
-      decay_rate = 0.999  # Decay by 0.1% per step
-      for g in optimizer.param_groups:
-        g['lr'] = lr * (decay_rate ** (step - warmup))
-    ##########################################
+    """Optimizes with warmup, LR schedule, and gradient clipping."""
+    # Set learning rate
+    current_lr = get_lr(step)
+    for g in optimizer.param_groups:
+      g['lr'] = current_lr
     
+    # Gradient clipping
     if grad_clip >= 0:
       torch.nn.utils.clip_grad_norm_(params, max_norm=grad_clip)
+    
     optimizer.step()
 
   return optimize_fn
 
+def get_lr_schedule_fn(config):
+  """Create learning rate schedule with warmup and cosine decay."""
+  warmup = config.optim.warmup
+  total_steps = config.training.n_iters
+  base_lr = config.optim.lr
+  
+  def schedule_fn(step):
+    if step < warmup:
+      # Linear warmup
+      return base_lr * (step / warmup)
+    else:
+      # Cosine decay
+      progress = (step - warmup) / (total_steps - warmup)
+      return base_lr * 0.5 * (1 + np.cos(np.pi * progress))
+  
+  return schedule_fn
 
 def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_weighting=True, eps=1e-5):
   """Create a loss function for training with arbirary SDEs.
@@ -133,6 +158,34 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
     loss = torch.mean(losses)
     return loss
 
+  return loss_fn
+
+def get_quasipotential_loss_fn(config, train, reduce_mean=True):
+  ''' Definition of the loss for the quasipotential learning'''
+  def loss_fn(model, batch):
+    x = batch['image']  # (batch, dim, 1, 1)
+    f_true = batch['vector_field']  # (batch, dim)
+    
+    # Get model predictions
+    f_pred = model(x, None)  # (batch, dim, 1, 1)
+    f_pred = f_pred.squeeze(-1).squeeze(-1)
+    
+    # Dynamics reconstruction loss
+    loss_dyn = torch.mean((f_pred - f_true)**2)
+    
+    # Orthogonality loss
+    x_flat = x.squeeze(-1).squeeze(-1)
+    grad_v = model.compute_grad_V(x_flat)
+    g = model.compute_g(x_flat)
+    inner_prod = torch.sum(grad_v * g, dim=1)
+    loss_orth = torch.mean(inner_prod**2)
+    
+    # Total loss
+    lambda_orth = config.model.lambda_orth
+    loss = loss_dyn + lambda_orth * loss_orth
+    
+    return loss
+  
   return loss_fn
 
 
@@ -208,6 +261,9 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
       loss_fn = get_ddpm_loss_fn(sde, train, reduce_mean=reduce_mean)
     else:
       raise ValueError(f"Discrete training for {sde.__class__.__name__} is not recommended.")
+  
+  # if config.training.sde == 'quasipotential':
+  #   loss_fn = get_quasipotential_loss_fn(config, train, reduce_mean)
 
   def step_fn(state, batch):
     """Running one step of training or evaluation.

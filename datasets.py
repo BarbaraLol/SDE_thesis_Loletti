@@ -21,6 +21,7 @@ import torch
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from toy_dataset import get_data_loaders, dataloader_to_iterator
+from quasipotential_dataset import get_quasipotential_dataset
 
 
 def get_data_scaler(config):
@@ -144,6 +145,10 @@ def get_dataset(config, uniform_dequantization=False, evaluation=False):
   # Adding a dataset builder for the LinearSDE     
   elif config.data.dataset.upper() == 'TOY2D':
     return get_toy_2d_dataset(config)
+
+  # Adding a dataset builder for the quasipotential examples     
+  elif config.data.dataset.upper() == 'quasipotential':
+    return get_quasipotential_dataset(config, evaluation)
 
   elif config.data.dataset in ['FFHQ', 'CelebAHQ']:
     dataset_builder = tf.data.TFRecordDataset(config.data.tfrecords_path)

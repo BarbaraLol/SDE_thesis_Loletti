@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from models import ncsnpp, ddpm, ncsnv2, simple_mlp
+from models import ncsnpp, ddpm, ncsnv2, simple_mlp, quasipotential_mlp
 
 def create_model(config):
     """Create the model."""
@@ -26,5 +26,7 @@ def create_model(config):
         return ncsnv2.NCSNv2(config)
     elif model_name == 'simple_mlp':
         return simple_mlp.create_model(config)
+    elif model_name == 'quasipotential_mlp':
+        return quasipotential_mlp.create_model(config)
     else:
         raise NotImplementedError(f"Model {model_name} not implemented.")
