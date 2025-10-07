@@ -147,7 +147,7 @@ def get_dataset(config, uniform_dequantization=False, evaluation=False):
     return get_toy_2d_dataset(config)
 
   # Adding a dataset builder for the quasipotential examples     
-  elif config.data.dataset.upper() == 'quasipotential':
+  elif config.data.dataset.upper() == 'QUASIPOTENTIAL':
     return get_quasipotential_dataset(config, evaluation)
 
   elif config.data.dataset in ['FFHQ', 'CelebAHQ']:

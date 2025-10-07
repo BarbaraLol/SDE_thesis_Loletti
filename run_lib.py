@@ -137,17 +137,20 @@ def train(config, workdir):
 
   for step in range(initial_step, num_train_steps + 1):
     # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
-    batch_data = next(train_iter)['image']
+    # batch_data = next(train_iter)['image']
     print(f"[DEBUG] Step {step}")
 
     if config.training.sde.lower() == 'quasipotential':
-      # For quasipotential, batch_data is actually the full batch dict
+      # For quasipotential, get the full batch dict
       batch = next(train_iter)  # Get the full dict with 'x', 'x_next', 'dt'
       # Move to device
       for key in batch:
         if isinstance(batch[key], torch.Tensor):
           batch[key] = batch[key].to(config.device).float()
-    else: 
+    else:
+      # For other datasets, expect 'image' key
+      batch_data = next(train_iter)['image']
+      
       if isinstance(batch_data, torch.Tensor):
         batch = batch_data.to(config.device).float()
       else:

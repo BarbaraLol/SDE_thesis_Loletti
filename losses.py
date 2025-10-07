@@ -344,13 +344,14 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
     """Compute quasipotential loss"""
     x = batch['x']  # (batch, dim, 1, 1)
     x_next = batch['x_next']  # (batch, dim, 1, 1)
-    dt = batch['dt']  # scalar
+    dt = batch['dt']  # This will be a scalar (float)
     
     # Flatten for computation
     x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
-    x_next_flat = x_next.squeeze(-1).squeeze(-1)
+    x_next_flat = x_next.squeeze(-1).squeeze(-1)  # (batch, dim)
     
     # Compute vector field from data: f ≈ (x_next - x) / dt
+    # dt is a scalar, so this should work directly
     f_data = (x_next_flat - x_flat) / dt
     
     # Get model prediction
@@ -370,29 +371,7 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
     loss = loss_dyn + lambda_orth * loss_orth
     
     if train and (torch.isnan(loss) or torch.isinf(loss)):
-      print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
-    
-    return loss
-  
-  def step_fn(state, batch):
-    """Execute one training/evaluation step"""
-    model = state['model']
-    
-    if train:
-      optimizer = state['optimizer']
-      optimizer.zero_grad()
-      loss = loss_fn(model, batch)
-      loss.backward()
-      optimize_fn(optimizer, model.parameters(), step=state['step'])
-      state['step'] += 1
-      state['ema'].update(model.parameters())
-    else:
-      with torch.no_grad():
-        ema = state['ema']
-        ema.store(model.parameters())
-        ema.copy_to(model.parameters())
-        loss = loss_fn(model, batch)
-        ema.restore(model.parameters())
+        print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
     
     return loss
   
