@@ -1,7 +1,5 @@
 ''' 
     NN implementation for learning the quasipotential via orthogonal decomposition (as in the paper)
-    Being an ODE the 
-    dx = [f(x,t) - 0.5 g(t)^2 ∇_x log p_t(x)] dt
 '''
 
 import torch
@@ -9,7 +7,6 @@ import torch.nn as nn
 from models import utils as mutils
 
 @mutils.register_model(name='quasipotential_mlp')
-
 class GeneralizedQuasipotential(nn.Module):
     ''' 
         Learn V(x) and g(x) such that f(x) = -∇V(x) + g(x)
@@ -51,9 +48,9 @@ class GeneralizedQuasipotential(nn.Module):
 
     
     def compute_V(self, x):
-        '''V(x) = ...............'''
+        '''V(x) = V_net(x) + quadratic term'''
         if len(x.shape) == 4:
-            x.squeeze(-1).squeeze(-1)
+            x = x.squeeze(-1).squeeze(-1)
         
         v_net = self.v_net(x)
         quadratic = 0.5 * self.quadratic_weight * torch.sum(x**2, dim=-1, keepdim=True)
@@ -75,22 +72,35 @@ class GeneralizedQuasipotential(nn.Module):
             x = x.squeeze(-1).squeeze(-1)
         return self.g_net(x)
 
-    def forward(self, x):
+    def forward(self, x, t=None):
         ''' 
-        It returns
-            - f (constructed vector field)
-            - grad_v (gradient of V)
-            - g (rotational component)
+        It returns f (constructed vector field)
+        Note: t is not used for quasipotential but kept for API compatibility
+        
+        Args:
+            x: input tensor (batch, dim, 1, 1) or (batch, dim)
+            t: time parameter (not used, kept for API compatibility)
+        
+        Returns:
+            f: vector field in same format as input
         '''
-        grad_v = self.compute_grad_V(x)
-        g = self.compute_g(x)
+        # Handle both (batch, dim, 1, 1) and (batch, dim) inputs
+        original_shape = x.shape
+        if len(x.shape) == 4:
+            x_flat = x.squeeze(-1).squeeze(-1)
+        else:
+            x_flat = x
+        
+        grad_v = self.compute_grad_V(x_flat)
+        g = self.compute_g(x_flat)
         f = -grad_v + g
 
-        # Return in expected format
-        if len(x.shape) == 4:
+        # Return in same format as input
+        if len(original_shape) == 4:
             return f.unsqueeze(-1).unsqueeze(-1)
         return f
 
+
 def create_model(config):
     """Factory function to create the model"""
-    return QuasipotentialMLP(config)
+    return GeneralizedQuasipotential(config)

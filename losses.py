@@ -344,24 +344,33 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
         """Compute quasipotential loss"""
         x = batch['x']  # (batch, dim, 1, 1)
         x_next = batch['x_next']  # (batch, dim, 1, 1)
-        dt = batch['dt']  # scalar
+        dt = batch['dt']  # scalar or (batch,)
+        
+        # Ensure dt is a tensor on the correct device
+        if not isinstance(dt, torch.Tensor):
+            dt = torch.tensor(dt, device=x.device, dtype=torch.float32)
         
         # Flatten for computation
         x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
-        x_next_flat = x_next.squeeze(-1).squeeze(-1)
+        x_next_flat = x_next.squeeze(-1).squeeze(-1)  # (batch, dim)
         
         # Compute vector field from data: f ≈ (x_next - x) / dt
-        f_data = (x_next_flat - x_flat) / dt
+        # Make sure dt has the right shape for broadcasting
+        if dt.dim() == 0:  # scalar
+            f_data = (x_next_flat - x_flat) / dt
+        else:  # (batch,)
+            f_data = (x_next_flat - x_flat) / dt.unsqueeze(-1)
         
-        # Get model prediction
-        f_pred = model(x, None).squeeze(-1).squeeze(-1)
+        # Get model prediction - pass the unsqueezed version
+        f_pred = model(x, None)  # Should return (batch, dim, 1, 1)
+        f_pred = f_pred.squeeze(-1).squeeze(-1)  # (batch, dim)
         
         # Dynamics reconstruction loss
         loss_dyn = torch.mean((f_pred - f_data)**2)
         
         # Orthogonality loss
-        grad_v = model.compute_grad_V(x_flat)
-        g = model.compute_g(x_flat)
+        grad_v = model.module.compute_grad_V(x_flat) if hasattr(model, 'module') else model.compute_grad_V(x_flat)
+        g = model.module.compute_g(x_flat) if hasattr(model, 'module') else model.compute_g(x_flat)
         inner_prod = torch.sum(grad_v * g, dim=1)
         loss_orth = torch.mean(inner_prod**2)
         
@@ -371,6 +380,8 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
         
         if train and (torch.isnan(loss) or torch.isinf(loss)):
             print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
+            print(f"f_pred stats - mean: {f_pred.mean()}, std: {f_pred.std()}")
+            print(f"f_data stats - mean: {f_data.mean()}, std: {f_data.std()}")
         
         return loss
     
@@ -382,6 +393,16 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
             optimizer = state['optimizer']
             optimizer.zero_grad()
             loss = loss_fn(model, batch)
+            
+            # Debug: Check if loss is valid
+            if loss is None:
+                print("ERROR: loss is None!")
+                print(f"batch keys: {batch.keys()}")
+                print(f"x shape: {batch['x'].shape}")
+                print(f"x_next shape: {batch['x_next'].shape}")
+                print(f"dt: {batch['dt']}")
+                raise ValueError("Loss computation returned None")
+            
             loss.backward()
             optimize_fn(optimizer, model.parameters(), step=state['step'])
             state['step'] += 1
