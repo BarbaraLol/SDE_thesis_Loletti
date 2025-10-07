@@ -61,7 +61,11 @@ class GeneralizedQuasipotential(nn.Module):
         if len(x.shape) == 4:
             x = x.squeeze(-1).squeeze(-1)
         
-        x_req_grad = x.requires_grad_(True)
+        # Ensure x requires grad
+        if not x.requires_grad:
+            x = x.requires_grad_(True)
+        # x_req_grad = x.requires_grad_(True)
+        
         v = self.compute_V(x_req_grad)
         grad_v = torch.autograd.grad(v.sum(), x_req_grad, create_graph=True)[0]
         return grad_v
@@ -74,29 +78,23 @@ class GeneralizedQuasipotential(nn.Module):
 
     def forward(self, x, t=None):
         ''' 
-        It returns f (constructed vector field)
-        Note: t is not used for quasipotential but kept for API compatibility
-        
-        Args:
-            x: input tensor (batch, dim, 1, 1) or (batch, dim)
-            t: time parameter (not used, kept for API compatibility)
-        
-        Returns:
-            f: vector field in same format as input
+        It returns the constructed vector field f = -∇V(x) + g(x)
         '''
-        # Handle both (batch, dim, 1, 1) and (batch, dim) inputs
-        original_shape = x.shape
+        # Ensure x requires grad for autograd
         if len(x.shape) == 4:
             x_flat = x.squeeze(-1).squeeze(-1)
         else:
             x_flat = x
         
+        if not x_flat.requires_grad:
+            x_flat = x_flat.requires_grad_(True)
+        
         grad_v = self.compute_grad_V(x_flat)
         g = self.compute_g(x_flat)
         f = -grad_v + g
 
-        # Return in same format as input
-        if len(original_shape) == 4:
+        # Return in expected format
+        if len(x.shape) == 4:
             return f.unsqueeze(-1).unsqueeze(-1)
         return f
 
