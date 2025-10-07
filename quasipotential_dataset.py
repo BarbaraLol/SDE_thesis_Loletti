@@ -59,15 +59,15 @@ class QuasipotentialDataset(Dataset):
     
     def __getitem__(self, idx):
         x, x_next = self.data_pairs[idx]
-        
+
         # Convert to tensors and add spatial dims
         x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(-1).unsqueeze(-1)
         x_next_tensor = torch.tensor(x_next, dtype=torch.float32).unsqueeze(-1).unsqueeze(-1)
-        
+
         return {
             'x': x_tensor,  # (dim, 1, 1)
             'x_next': x_next_tensor,  # (dim, 1, 1)
-            'dt': self.dt
+            'dt': torch.tensor(self.dt, dtype=torch.float32)  # Make it a tensor scalar
         }
 
 

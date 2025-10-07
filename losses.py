@@ -344,11 +344,19 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
     """Compute quasipotential loss"""
     x = batch['x']  # (batch, dim, 1, 1)
     x_next = batch['x_next']  # (batch, dim, 1, 1)
-    dt = batch['dt']  # scalar
+    dt = batch['dt']  # scalar or tensor
     
     # Flatten for computation
     x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
-    x_next_flat = x_next.squeeze(-1).squeeze(-1)
+    x_next_flat = x_next.squeeze(-1).squeeze(-1)  # (batch, dim)
+    
+    # Ensure dt is a scalar (not a tensor per batch element)
+    if isinstance(dt, torch.Tensor):
+      if dt.numel() == 1:
+        dt = dt.item()
+      else:
+        # If dt varies per sample, take the first (they should all be same)
+        dt = dt[0].item() if dt.dim() > 0 else dt.item()
     
     # Ensure requires_grad for autograd
     x_flat = x_flat.requires_grad_(True)
@@ -385,6 +393,7 @@ def get_quasipotential_step_fn(config, train, optimize_fn=None):
     
     if train and (torch.isnan(loss) or torch.isinf(loss)):
       print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
+      print(f"x_flat shape: {x_flat.shape}, f_pred shape: {f_pred.shape}, f_data shape: {f_data.shape}")
     
     return loss
   
