@@ -16,7 +16,7 @@ class GeneralizedQuasipotential(nn.Module):
         Considering the orthogonal constraint ∇V(x)^Tg(x) = 0
     '''
     def __init__(self, config):
-        super.__init__()
+        super().__init__()
         self.config = config
         self.dims = config.model.dim
         hidden_dims = config.model.hidden_dims
@@ -86,4 +86,11 @@ class GeneralizedQuasipotential(nn.Module):
         g = self.compute_g(x)
         f = -grad_v + g
 
-        return f, grad_v, g
+        # Return in expected format
+        if len(x.shape) == 4:
+            return f.unsqueeze(-1).unsqueeze(-1)
+        return f
+
+def create_model(config):
+    """Factory function to create the model"""
+    return QuasipotentialMLP(config)

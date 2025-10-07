@@ -45,6 +45,7 @@ def get_config():
    model.activation = "tanh"
    model.lambda_orth = 0.5  # Orthogonality loss weight
    model.embedding_type = 'none'
+    model.ema_rate = 0.9999
    
    # Optimization
    config.optim = optim = ml_collections.ConfigDict()

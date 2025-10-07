@@ -45,6 +45,7 @@ def get_config():
    model.activation = "tanh"
    model.lambda_orth = 0.2  # Orthogonality loss weight
    model.embedding_type = 'none'
+   model.ema_rate = 0.9999
    
    # Optimization
    config.optim = optim = ml_collections.ConfigDict()
@@ -66,7 +67,7 @@ def get_config():
 
    # Device
    config.seed = 42
-   # config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-   config.device = 'cpu'
+   config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+   # config.device = 'cpu'
    
    return config

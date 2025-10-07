@@ -82,7 +82,9 @@ class SimpleMLP(nn.Module):
         
         for block in self.blocks:
             h_input = torch.cat([h, time_emb], dim=1)
-            h = h + block(h_input)  # Residual connection
+            # h = h + block(h_input)  # Residual connection
+            h = block(h_input)  # Without residual connection
+            
             
         score = self.output_layer(h)
         

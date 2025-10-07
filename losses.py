@@ -164,7 +164,7 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
     if not likelihood_weighting:
       # Standard score matching loss for LinearSDE
       if isinstance(sde, sde_lib.LinearSDE):
-        # CORRECTED: For anisotropic noise, the target is -z/std
+        # For anisotropic noise, the target is -z/std
         # But we need to be careful with the loss formulation
         # Loss: E[||score * std + z||²]
         losses = torch.square(score * std + z)
@@ -282,6 +282,11 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
   Returns:
     A one-step function for training or evaluation.
   """
+  # Check if this is quasipotential training
+  if hasattr(sde, '__class__') and 'quasipotential' in str(type(sde)).lower():
+    # This shouldn't happen - quasipotential doesn't use SDE
+    raise ValueError("Quasipotential training should not use SDE-based step function")
+
   if continuous:
     loss_fn = get_sde_loss_fn(sde, train, reduce_mean=reduce_mean,
                               continuous=True, likelihood_weighting=likelihood_weighting)
@@ -330,4 +335,65 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
 
     return loss
 
+  return step_fn
+
+def get_quasipotential_step_fn(config, train, optimize_fn=None):
+  """Create training/evaluation step for quasipotential learning"""
+  
+  def loss_fn(model, batch):
+    """Compute quasipotential loss"""
+    x = batch['x']  # (batch, dim, 1, 1)
+    x_next = batch['x_next']  # (batch, dim, 1, 1)
+    dt = batch['dt']  # scalar
+    
+    # Flatten for computation
+    x_flat = x.squeeze(-1).squeeze(-1)  # (batch, dim)
+    x_next_flat = x_next.squeeze(-1).squeeze(-1)
+    
+    # Compute vector field from data: f ≈ (x_next - x) / dt
+    f_data = (x_next_flat - x_flat) / dt
+    
+    # Get model prediction
+    f_pred = model(x, None).squeeze(-1).squeeze(-1)
+    
+    # Dynamics reconstruction loss
+    loss_dyn = torch.mean((f_pred - f_data)**2)
+    
+    # Orthogonality loss
+    grad_v = model.compute_grad_V(x_flat)
+    g = model.compute_g(x_flat)
+    inner_prod = torch.sum(grad_v * g, dim=1)
+    loss_orth = torch.mean(inner_prod**2)
+    
+    # Total loss
+    lambda_orth = config.model.lambda_orth
+    loss = loss_dyn + lambda_orth * loss_orth
+    
+    if train and (torch.isnan(loss) or torch.isinf(loss)):
+      print(f"NaN/Inf detected: loss_dyn={loss_dyn.item()}, loss_orth={loss_orth.item()}")
+    
+    return loss
+  
+  def step_fn(state, batch):
+    """Execute one training/evaluation step"""
+    model = state['model']
+    
+    if train:
+      optimizer = state['optimizer']
+      optimizer.zero_grad()
+      loss = loss_fn(model, batch)
+      loss.backward()
+      optimize_fn(optimizer, model.parameters(), step=state['step'])
+      state['step'] += 1
+      state['ema'].update(model.parameters())
+    else:
+      with torch.no_grad():
+        ema = state['ema']
+        ema.store(model.parameters())
+        ema.copy_to(model.parameters())
+        loss = loss_fn(model, batch)
+        ema.restore(model.parameters())
+    
+    return loss
+  
   return step_fn

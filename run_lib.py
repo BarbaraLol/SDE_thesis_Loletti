@@ -99,6 +99,10 @@ def train(config, workdir):
   elif config.training.sde.lower() == 'linear':
     sde = sde_lib.LinearSDE(A_matrix=config.model.A_matrix, epsilon=config.model.epsilon, N=config.model.num_scales)
     sampling_eps = 1e-5
+  elif config.training.sde.lower() == 'quasipotential':
+    # Quasipotential doesn't use SDE, so we set sde = None
+    sde = None
+    sampling_eps = None
   else:
     raise NotImplementedError(f"SDE {config.training.sde} unknown.")
 
@@ -107,15 +111,21 @@ def train(config, workdir):
   continuous = config.training.continuous
   reduce_mean = config.training.reduce_mean
   likelihood_weighting = config.training.likelihood_weighting
-  train_step_fn = losses.get_step_fn(sde, train=True, optimize_fn=optimize_fn,
-                                     reduce_mean=reduce_mean, continuous=continuous,
-                                     likelihood_weighting=likelihood_weighting)
-  eval_step_fn = losses.get_step_fn(sde, train=False, optimize_fn=optimize_fn,
-                                    reduce_mean=reduce_mean, continuous=continuous,
-                                    likelihood_weighting=likelihood_weighting)
 
-  # Building sampling functions
-  if config.training.snapshot_sampling:
+  # The quasipotential need different steps from the other cases
+  if config.training.sde.lower() == 'quasipotential':
+    train_step_fn = losses.get_quasipotential_step_fn(config, train=True, optimize_fn=optimize_fn)
+    eval_step_fn = losses.get_quasipotential_step_fn(config, train=False, optimize_fn=optimize_fn)
+  else :
+    train_step_fn = losses.get_step_fn(sde, train=True, optimize_fn=optimize_fn,
+                                      reduce_mean=reduce_mean, continuous=continuous,
+                                      likelihood_weighting=likelihood_weighting)
+    eval_step_fn = losses.get_step_fn(sde, train=False, optimize_fn=optimize_fn,
+                                      reduce_mean=reduce_mean, continuous=continuous,
+                                      likelihood_weighting=likelihood_weighting)
+
+  # Building sampling functions (but only for non-quasipotential scenarios)
+  if config.training.snapshot_sampling and config.training.sde.lower() != 'quasipotential':
     sampling_shape = (config.training.batch_size, config.data.num_channels,
                       config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, inverse_scaler, sampling_eps)
@@ -129,19 +139,28 @@ def train(config, workdir):
     # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
     batch_data = next(train_iter)['image']
     print(f"[DEBUG] Step {step}")
-    if isinstance(batch_data, torch.Tensor):
-      batch = batch_data.to(config.device).float()
-    else:
-      batch = torch.from_numpy(batch_data._numpy()).to(config.device).float()
 
-    if config.data.dataset.upper() == 'TOY2D':
-      # Toy datash, let should remain (batch, 2, 1, 1) - no permutation
-      pass
-    elif len(batch.shape) == 4 and batch.shape[-1] in [1, 2, 3]:
-      # Other datasets need permutation from channels-last to channels-first
-      batch = batch.permute(0, 3, 1, 2)  # Convert to (batch, channels, height, width)
-    
-    batch = scaler(batch)
+    if config.training.sde.lower() == 'quasipotential':
+      # For quasipotential, batch_data is actually the full batch dict
+      batch = next(train_iter)  # Get the full dict with 'x', 'x_next', 'dt'
+      # Move to device
+      for key in batch:
+        if isinstance(batch[key], torch.Tensor):
+          batch[key] = batch[key].to(config.device).float()
+    else: 
+      if isinstance(batch_data, torch.Tensor):
+        batch = batch_data.to(config.device).float()
+      else:
+        batch = torch.from_numpy(batch_data._numpy()).to(config.device).float()
+
+      if config.data.dataset.upper() == 'TOY2D':
+        # Toy datash, let should remain (batch, 2, 1, 1) - no permutation
+        pass
+      elif len(batch.shape) == 4 and batch.shape[-1] in [1, 2, 3]:
+        # Other datasets need permutation from channels-last to channels-first
+        batch = batch.permute(0, 3, 1, 2)  # Convert to (batch, channels, height, width)
+      
+      batch = scaler(batch)
     
     # Execute one training step
     loss = train_step_fn(state, batch)
@@ -155,16 +174,24 @@ def train(config, workdir):
 
     # Report the loss on an evaluation dataset periodically
     if step % config.training.eval_freq == 0:
-      # eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
-      eval_batch_data = next(eval_iter)['image']
-      if isinstance(eval_batch_data, torch.Tensor):
-        eval_batch = eval_batch_data.to(config.device).float()
+      if config.training.sde.lower() == 'quasipotential':
+        eval_batch = next(eval_iter)
+        # Move to device
+        for key in eval_batch:
+          if isinstance(eval_batch[key], torch.Tensor):
+            eval_batch[key] = eval_batch[key].to(config.device).float()
       else:
-        eval_batch = torch.from_numpy(eval_batch_data._numpy()).to(config.device).float()
-      # Convert from channels-last to channels-first for PyTorch
-      if len(eval_batch.shape) == 4 and eval_batch.shape[-1] in [1, 2, 3]:  # Assuming channels-last format
-        eval_batch = eval_batch.permute(0, 3, 1, 2)  # Convert to (batch, channels, height, width)
-      eval_batch = scaler(eval_batch)
+        # eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
+        eval_batch_data = next(eval_iter)['image']
+        if isinstance(eval_batch_data, torch.Tensor):
+          eval_batch = eval_batch_data.to(config.device).float()
+        else:
+          eval_batch = torch.from_numpy(eval_batch_data._numpy()).to(config.device).float()
+        # Convert from channels-last to channels-first for PyTorch
+        if len(eval_batch.shape) == 4 and eval_batch.shape[-1] in [1, 2, 3]:  # Assuming channels-last format
+          eval_batch = eval_batch.permute(0, 3, 1, 2)  # Convert to (batch, channels, height, width)
+        eval_batch = scaler(eval_batch)
+      
       eval_loss = eval_step_fn(state, eval_batch)
       logging.info("step: %d, eval_loss: %.5e" % (step, eval_loss.item()))
       writer.add_scalar("eval_loss", eval_loss.item(), step)
@@ -176,7 +203,7 @@ def train(config, workdir):
       save_checkpoint(os.path.join(checkpoint_dir, f'checkpoint_{save_step}.pth'), state)
 
       # Generate and save samples
-      if config.training.snapshot_sampling:
+      if config.training.snapshot_sampling and config.training.sde.lower() != 'quasipotential':
         ema.store(score_model.parameters())
         ema.copy_to(score_model.parameters())
         sample, n = sampling_fn(score_model)
