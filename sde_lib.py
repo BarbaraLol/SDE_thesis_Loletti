@@ -255,7 +255,7 @@ class VESDE(SDE):
 
 
 class LinearSDE(SDE):
-  """Linear SDE: dx_t = -Ax_t dt + espilon dw_t
+  """Linear SDE: dx_t = -Ax_t dt + espilon dw_t 
   
   This implements a linear SDE with time-independent drift matrix A and 
   diffusion coefficient espilon. The non-equilibrium condition [A, A^T] != 0 
@@ -348,13 +348,14 @@ class LinearSDE(SDE):
 
   def marginal_prob(self, x, t):
     """
+    Covariance = S_inf
     Exact marginal probability p_t(x|x_0) for dx_t = -Ax_t dt + espilon dw_t
     
     For time-independent A and espilon, the solution is:
       x_t = exp(-At) x_0 + ∫ exp(-A(t-s)) espilon dw_s
     
     Therefore:
-      Mean: μ(t) = exp(-At) x_0
+      Mean: μ(t) = exp(-At) * x_0
       Covariance: Sigma(t) = S_inf - exp(-A*t) S_inf * exp(-(A^T)*t)
     
     where S_inf satisfies A S_inf + S_inf A^T = espilon^2 I.

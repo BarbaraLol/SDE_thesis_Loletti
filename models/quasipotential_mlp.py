@@ -64,7 +64,6 @@ class GeneralizedQuasipotential(nn.Module):
         # Ensure x requires grad
         if not x.requires_grad:
             x = x.requires_grad_(True)
-        # x_req_grad = x.requires_grad_(True)
         
         v = self.compute_V(x)
         grad_v = torch.autograd.grad(v.sum(), x, create_graph=True)[0]
@@ -97,8 +96,3 @@ class GeneralizedQuasipotential(nn.Module):
         if len(x.shape) == 4:
             return f.unsqueeze(-1).unsqueeze(-1)
         return f
-
-
-# def create_model(config):
-#     """Factory function to create the model"""
-#     return GeneralizedQuasipotential(config)

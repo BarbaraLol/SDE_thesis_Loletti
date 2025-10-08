@@ -79,10 +79,12 @@ def get_quasipotential_dataset(config, evaluation=False):
     
     # Split into train/test
     n_train = int(0.8 * len(dataset))
-    n_test = len(dataset) - n_train
+    remaining_ds = len(dataset) - n_train
+    n_test = int(0.1 * len(remaining_ds))
+    n_val = len(remaining_ds) - n_test
     
-    train_ds, test_ds = torch.utils.data.random_split(
-        dataset, [n_train, n_test],
+    train_ds, test_ds, val_ds = torch.utils.data.random_split(
+        dataset, [n_train, n_test, n_val],
         generator=torch.Generator().manual_seed(config.seed)
     )
     
@@ -92,6 +94,10 @@ def get_quasipotential_dataset(config, evaluation=False):
     test_loader = DataLoader(
         test_ds, batch_size=batch_size, shuffle=False, drop_last=True
     )
+
+    val_loader = DataLoader(
+        val_ds, batch_size=batch_size, shuffle=False, drop_last=True
+    )
     
     # Create infinite iterators
     def infinite_iterator(loader):
@@ -99,4 +105,4 @@ def get_quasipotential_dataset(config, evaluation=False):
             for batch in loader:
                 yield batch
     
-    return infinite_iterator(train_loader), infinite_iterator(test_loader), dataset.system
+    return infinite_iterator(train_loader), infinite_iterator(test_loader), infinite_iterator(val_loader), dataset.system

@@ -10,7 +10,7 @@ def get_config():
    # Training
    config.training = training = ml_collections.ConfigDict()
    training.batch_size = 128 
-   training.n_iters = 50000 
+   training.n_iters = 500000 
    training.snapshot_freq = 5000 
    training.log_freq = 100
    training.eval_freq = 1000
@@ -29,21 +29,25 @@ def get_config():
    data.n_trajectories = 2000
    data.T = 5.0 # Time horizont
    data.dt = 0.01 # Time step
-   data.domain = [[-2, 2], [-2, 2], [-2, 2]]
+   data.domain = [[-2, 2], [-1.5, 1.5], [-1.5, 1.5]]
    data.num_channels = 3  # Same as the dim, for compatibility
    data.image_size = 1 # dummy value
    data.uniform_dequantization = False
    data.centered = False  # Keep data in [0,1] range
    data.random_flip = False  # No random flips for 2D point data
+   # data.m = 10
+   # data.r = 0.1
+   # data.delta = 1 # Used for the orthogonality error
+   # data.lambda = 1 # Used for the predicted long-term dyamic error
    
    # Model configuration
    config.model = model = ml_collections.ConfigDict()
    model.name = 'quasipotential_mlp'
    model.dim = 3 # Input/output dimentions
-   model.hidden_dims = [128, 128]
+   model.hidden_dims = [128, 128] # change this
    model.dropout = 0.0 # form 0.05 to no dropout for full capacity
    model.activation = "tanh"
-   model.lambda_orth = 0.5  # Orthogonality loss weight
+   model.lambda_orth = 0.5  # Orthogonality loss weight ####
    model.embedding_type = 'none'
    model.ema_rate = 0.9999
    

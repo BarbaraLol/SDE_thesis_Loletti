@@ -10,7 +10,7 @@ def get_config():
    # Training
    config.training = training = ml_collections.ConfigDict()
    training.batch_size = 128 
-   training.n_iters = 50000 
+   training.n_iters = 500000 
    training.snapshot_freq = 5000 
    training.log_freq = 100
    training.eval_freq = 1000
@@ -35,6 +35,10 @@ def get_config():
    data.uniform_dequantization = False
    data.centered = False  # Keep data in [0,1] range
    data.random_flip = False  # No random flips for 2D point data
+   # data.m = 10
+   # data.r = 0.05
+   # data.delta = 1 # Used for the orthogonality error
+   # data.lambda = 0.02 # Used for the predicted long-term dyamic error
    
    # Model configuration
    config.model = model = ml_collections.ConfigDict()
