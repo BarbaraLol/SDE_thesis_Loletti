@@ -2,6 +2,7 @@
 
 import numpy as np
 
+# Linear attractive drift
 def attractive_drift(x: np.ndarray, t: float, strength: float = 1, center: np.ndarray = None) -> np.ndarray:
     '''
     Drift function simulatin an attraction towards the center (0, 0) of the cartesian plain
@@ -19,7 +20,7 @@ def attractive_drift(x: np.ndarray, t: float, strength: float = 1, center: np.nd
 
     return -strength * (x - center)
 
-# ============= 2. ROTATIONAL DRIFT =============
+# Rotational drift 
 def rotational_drift(x: np.ndarray, t: float, omega: float = 1.0) -> np.ndarray:
     """
     Drift rotazionale (solo 2D)
@@ -44,7 +45,7 @@ def rotational_drift(x: np.ndarray, t: float, omega: float = 1.0) -> np.ndarray:
     return x @ rotation_matrix.T
 
 
-# ============= 3. COMBINED DRIFT (Attrazione + Rotazione) =============
+# 3. Combined drift (linear attractive + rotational) 
 def combined_drift(x: np.ndarray, t: float, 
                   attractive_strength: float = 0.5,
                   rotational_omega: float = 0.5) -> np.ndarray:
@@ -68,7 +69,7 @@ def combined_drift(x: np.ndarray, t: float,
             rotational_drift(x, t, rotational_omega))
 
 
-# ============= 4. DOUBLE WELL DRIFT =============
+# Double well drift
 def double_well_drift(x: np.ndarray, t: float, a: float = 1.0, b: float = 1.0) -> np.ndarray:
     """
     Drift derivato da un potenziale a doppio pozzo
@@ -91,7 +92,7 @@ def double_well_drift(x: np.ndarray, t: float, a: float = 1.0, b: float = 1.0) -
     return a * x - b * (x ** 3)
 
 
-# ============= 5. TIME-VARYING DRIFT =============
+# Time-varying drift
 def time_varying_drift(x: np.ndarray, t: float, T: float = 5.0) -> np.ndarray:
     """
     Drift attrattivo che aumenta nel tempo
@@ -112,7 +113,7 @@ def time_varying_drift(x: np.ndarray, t: float, T: float = 5.0) -> np.ndarray:
     return -strength * x
 
 
-# ============= 6. REPULSIVE DRIFT =============
+# Repulsive drift
 def repulsive_drift(x: np.ndarray, t: float, strength: float = 1.0) -> np.ndarray:
     """
     Drift repulsivo dall'origine
@@ -132,7 +133,7 @@ def repulsive_drift(x: np.ndarray, t: float, strength: float = 1.0) -> np.ndarra
     return strength * x
 
 
-# ============= 7. GRADIENT FLOW (Ornstein-Uhlenbeck) =============
+# Gradient flow (Ornstein-Uhlenbeck)
 def ornstein_uhlenbeck_drift(x: np.ndarray, t: float, 
                              theta: float = 1.0, 
                              mu: np.ndarray = None) -> np.ndarray:
@@ -158,7 +159,7 @@ def ornstein_uhlenbeck_drift(x: np.ndarray, t: float,
     return theta * (mu - x)
 
 
-# ============= 8. VORTEX DRIFT =============
+# Vortex drift
 def vortex_drift(x: np.ndarray, t: float, strength: float = 1.0) -> np.ndarray:
     """
     Drift che crea un vortice (rotazione + attrazione radiale)
@@ -191,7 +192,7 @@ def vortex_drift(x: np.ndarray, t: float, strength: float = 1.0) -> np.ndarray:
     return strength * (tangential + radial)
 
 
-# ============= 9. SADDLE DRIFT =============
+# Saddle drift
 def saddle_drift(x: np.ndarray, t: float, 
                 lambda_stable: float = 1.0,
                 lambda_unstable: float = 1.0) -> np.ndarray:
@@ -220,7 +221,7 @@ def saddle_drift(x: np.ndarray, t: float,
     return drift
 
 
-# ============= 10. LANGEVIN DYNAMICS =============
+# Langevin dynamics 
 def langevin_drift(x: np.ndarray, t: float, 
                   potential_gradient: callable = None,
                   gamma: float = 1.0) -> np.ndarray:

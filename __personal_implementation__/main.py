@@ -139,72 +139,52 @@ Drift disponibili:
     )
     
     # Argomenti principali
-    parser.add_argument('--config', '-c', type=str, default='arc',
-                       choices=['arc', 'disk'],
-                       help='Configurazione da caricare (default: arc)')
+    parser.add_argument('--config', '-c', type=str, default='arc', choices=['arc', 'disk'], help='Configurazione da caricare (default: arc)')
     
-    parser.add_argument('--drift', '-d', type=str, default=None,
-                       help='Tipo di drift (override config file)')
+    parser.add_argument('--drift', '-d', type=str, default=None, help='Tipo di drift (override config file)')
     
     # Parametri SDE
-    parser.add_argument('--epsilon', type=float, default=None,
-                       help='Intensità rumore stocastico')
+    parser.add_argument('--epsilon', type=float, default=None, help='Intensità rumore stocastico')
     
-    parser.add_argument('--T', type=float, default=None,
-                       help='Tempo finale simulazione')
+    parser.add_argument('--T', type=float, default=None, help='Tempo finale simulazione')
     
-    parser.add_argument('--dt', type=float, default=None,
-                       help='Timestep')
+    parser.add_argument('--dt', type=float, default=None, help='Timestep')
     
     # Parametri manifold
-    parser.add_argument('--n_points', type=int, default=None,
-                       help='Numero di punti iniziali')
+    parser.add_argument('--n_points', type=int, default=None, help='Numero di punti iniziali')
     
-    parser.add_argument('--radius', type=float, default=None,
-                       help='Raggio manifold iniziale')
+    parser.add_argument('--radius', type=float, default=None, help='Raggio manifold iniziale')
     
     # Parametri drift: attractive/repulsive/vortex
-    parser.add_argument('--strength', type=float, default=None,
-                       help='Intensità drift')
+    parser.add_argument('--strength', type=float, default=None, help='Intensità drift')
     
     # Parametri drift: rotational
-    parser.add_argument('--omega', type=float, default=None,
-                       help='Velocità angolare')
+    parser.add_argument('--omega', type=float, default=None, help='Velocità angolare')
     
     # Parametri drift: combined
-    parser.add_argument('--attractive_strength', type=float, default=None,
-                       help='Componente attrattiva (combined)')
+    parser.add_argument('--attractive_strength', type=float, default=None, help='Componente attrattiva (combined)')
     
-    parser.add_argument('--rotational_omega', type=float, default=None,
-                       help='Componente rotazionale (combined)')
+    parser.add_argument('--rotational_omega', type=float, default=None, help='Componente rotazionale (combined)')
     
     # Parametri drift: double_well
-    parser.add_argument('--a', type=float, default=None,
-                       help='Parametro a (double_well)')
+    parser.add_argument('--a', type=float, default=None, help='Parametro a (double_well)')
     
-    parser.add_argument('--b', type=float, default=None,
-                       help='Parametro b (double_well)')
+    parser.add_argument('--b', type=float, default=None, help='Parametro b (double_well)')
     
     # Parametri drift: saddle
-    parser.add_argument('--lambda_stable', type=float, default=None,
-                       help='Lambda stabile (saddle)')
+    parser.add_argument('--lambda_stable', type=float, default=None, help='Lambda stabile (saddle)')
     
-    parser.add_argument('--lambda_unstable', type=float, default=None,
-                       help='Lambda instabile (saddle)')
+    parser.add_argument('--lambda_unstable', type=float, default=None, help='Lambda instabile (saddle)')
     
     # Parametri drift: ornstein_uhlenbeck
-    parser.add_argument('--theta', type=float, default=None,
-                       help='Theta (ornstein_uhlenbeck)')
+    parser.add_argument('--theta', type=float, default=None, help='Theta (ornstein_uhlenbeck)')
     
     # Visualizzazione
-    parser.add_argument('--save_every', type=int, default=None,
-                       help='Salva ogni N step')
+    parser.add_argument('--save_every', type=int, default=None, help='Salva ogni N step')
     
-    parser.add_argument('--seed', type=int, default=None,
-                       help='Random seed')
+    parser.add_argument('--seed', type=int, default=None, help='Random seed')
     
-    parser.add_argument('--no_plot', action='store_true',
-                       help='Non mostrare i plot')
+    parser.add_argument('--no_plot', action='store_true', help='Non mostrare i plot')
     
     return parser.parse_args()
 
@@ -298,25 +278,6 @@ def main():
     
     # Crea funzione di drift
     drift_type = config.drift.type
-    
-    # Stampa parametri rilevanti per il tipo di drift
-    if drift_type in ['attractive', 'repulsive', 'vortex']:
-        pass
-        # print(f"  • Strength: {config.drift.strength}")
-    elif drift_type == 'rotational':
-        print(f"  • Omega: {config.drift.omega}")
-    elif drift_type == 'combined':
-        print(f"  • Attractive strength: {config.drift.attractive_strength}")
-        print(f"  • Rotational omega: {config.drift.rotational_omega}")
-    elif drift_type == 'double_well':
-        print(f"  • a: {config.drift.a}")
-        print(f"  • b: {config.drift.b}")
-    elif drift_type == 'saddle':
-        print(f"  • Lambda stable: {config.drift.lambda_stable}")
-        print(f"  • Lambda unstable: {config.drift.lambda_unstable}")
-    elif drift_type == 'ornstein_uhlenbeck':
-        print(f"  • Theta: {config.drift.theta}")
-    
     drift_fn = create_drift_function(config)
     
     # Crea solver
