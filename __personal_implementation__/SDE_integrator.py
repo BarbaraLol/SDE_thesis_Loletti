@@ -1,5 +1,6 @@
-import torch
-import torch.nn as nn
+import numpy as np
+from dataclasses import dataclass
+from typing import Callable, Optional, Tuple, List
 
 @dataclass
 class SDEconfig: 
@@ -7,9 +8,10 @@ class SDEconfig:
     dim: int # System dimentions
     T: float # Final time T
     dt: float # timestep
+    epsilon: float = 0.1
     n_steps: int=None # In case it is not provided, it is computed by doing T/dt
 
-    def __post_int__(self):
+    def __post_init__(self):
         if self.n_steps is None:
             self.n_steps = int(self.T / self.dt)
 
@@ -59,9 +61,9 @@ class SDESolver:
         # drift term
         drift = self.drift_fn(x, t)
 
-        # Computing the diffusion term: epsilon * dW ----
+        # Computing the diffusion term: epsilon * dW 
         if self.config.epsilon > 0:
-            dw = np.random.randn(n_points, self.config.dim)
+            dW = np.random.randn(n_points, self.config.dim)
             diffusion = (dW @ self.diffusion_sqrt.T) * np.sqrt(dt)
         else:
             diffusion = 0.0 # ODE case
@@ -71,7 +73,7 @@ class SDESolver:
 
         return x_next
 
-    def forward_trajectory(self, x0: np.ndarray, save_every: int = 1) -> Tuple[List[np.ndarray, np.ndarray]]:
+    def forward_trajectory(self, x0: np.ndarray, save_every: int = 1) -> Tuple[List[np.ndarray], np.ndarray]:
         '''
         Forward SDE integrator, from t = 0 to t = T
 
@@ -103,7 +105,7 @@ class SDESolver:
         '''
         Single reverse SDE step backward in time
 
-        The reverse SDE is computed as dx_t = [f(x,t) - g²∇log p_t(x)] dt + g dW
+        The reverse SDE is computed as dx_t = [f(x,t) - g^2∇log p_t(x)] dt + g*dW
 
         with g^2 = epsilon^2 is the diffusion coefficient
 
@@ -122,6 +124,7 @@ class SDESolver:
         score = score_fn(x, t)
 
         # Computing the reverse drift: f(x,t) - g²∇log p_t(x)
+        # matrix diffusion or identity matrix cases distinction
         drift = self.drift_fn(x, t)
         g_squared = self.config.epsilon ** 2
         reverse_drift = drift - g_squared * score
@@ -138,7 +141,7 @@ class SDESolver:
 
         return x_prev
 
-    def backward_trajectory(self, x_T: np.ndarray, score_fn: Callable[[np.ndarrray, float], np.ndarray], save_every: int = 1) -> Tuple[List[np.ndarray, np.ndarray]]:
+    def backward_trajectory(self, x_T: np.ndarray, score_fn: Callable[[np.ndarray, float], np.ndarray], save_every: int = 1) -> Tuple[List[np.ndarray], np.ndarray]:
         '''
         Integrating the reverse SDE backward form t = T to t = 0
 
@@ -151,8 +154,8 @@ class SDESolver:
             trajectory: List of saved positions (from T to 0)
             times: Array of saved times (from T to 0)
         '''
-        trajectory = [x0.copy()]
-        times = [0.0]
+        trajectory = [x_T.copy()]
+        times = [self.config.T]
 
         x = x_T.copy()
 
@@ -166,11 +169,5 @@ class SDESolver:
                 times.append(t - self.config.dt)
 
         return trajectory, np.array(times) 
-
-class ODESolver(SDESolver):
-    '''ODE Solver - special case of SDE with epsilon = 0'''
-    def __init__(self, dim: int, T: float, dt: float, drift_fn: Callable[[np.ndarray, float], np.ndarray]):
-        config = SDEConfig(dim=dim, T=T, dt=dt, epsilon=0.0)
-        super().__init__(config, drift_fn, diffusion_matrix=None)
 
         
