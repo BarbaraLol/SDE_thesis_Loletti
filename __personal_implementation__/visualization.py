@@ -107,3 +107,91 @@ def plot_forward_trajectories(trajectory: List[np.ndarray], times: np.ndarray,
     plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
     plt.tight_layout()
     plt.show()
+
+def plot_forward_backward_comparison(forward_traj, forward_times,
+                                     backward_traj, backward_times,
+                                     x0, title="Forward-Backward SDE"):
+    """Plot comparison between forward and backward trajectories"""
+    import matplotlib.pyplot as plt
+    
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    
+    forward_array = np.array(forward_traj)
+    backward_array = np.array(backward_traj)
+    
+    # Plot 1: Forward Evolution
+    ax1 = axes[0]
+    colors = plt.cm.Blues(np.linspace(0.3, 1, len(forward_traj)))
+    
+    for i in range(0, len(forward_traj), max(1, len(forward_traj)//8)):
+        ax1.scatter(forward_traj[i][:, 0], forward_traj[i][:, 1], 
+                   c=[colors[i]], s=30, alpha=0.6)
+    
+    ax1.scatter(x0[:, 0], x0[:, 1], c='green', s=80, marker='o',
+               edgecolors='black', linewidths=1.5, label='Start (t=0)', zorder=100)
+    ax1.scatter(forward_array[-1, :, 0], forward_array[-1, :, 1], 
+               c='red', s=80, marker='s', edgecolors='black', linewidths=1.5,
+               label=f'End (t=T)', zorder=100)
+    ax1.scatter(0, 0, c='gold', s=200, marker='*', 
+               edgecolors='black', linewidths=2, label='Target', zorder=50)
+    
+    ax1.set_xlabel('x', fontsize=12)
+    ax1.set_ylabel('y', fontsize=12)
+    ax1.set_title('Forward SDE (t: 0→T)', fontsize=14, fontweight='bold')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    ax1.axis('equal')
+    
+    # Plot 2: Backward Evolution
+    ax2 = axes[1]
+    colors = plt.cm.Reds(np.linspace(0.3, 1, len(backward_traj)))
+    
+    for i in range(0, len(backward_traj), max(1, len(backward_traj)//8)):
+        ax2.scatter(backward_traj[i][:, 0], backward_traj[i][:, 1], 
+                   c=[colors[i]], s=30, alpha=0.6)
+    
+    ax2.scatter(backward_array[0, :, 0], backward_array[0, :, 1], 
+               c='red', s=80, marker='s', edgecolors='black', linewidths=1.5,
+               label='Start (t=T)', zorder=100)
+    ax2.scatter(backward_array[-1, :, 0], backward_array[-1, :, 1], 
+               c='green', s=80, marker='o', edgecolors='black', linewidths=1.5,
+               label='End (t=0)', zorder=100)
+    ax2.scatter(0, 0, c='gold', s=200, marker='*', 
+               edgecolors='black', linewidths=2, label='Target', zorder=50)
+    
+    ax2.set_xlabel('x', fontsize=12)
+    ax2.set_ylabel('y', fontsize=12)
+    ax2.set_title('Backward SDE (t: T→0)', fontsize=14, fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    ax2.axis('equal')
+    
+    # Plot 3: Reconstruction
+    ax3 = axes[2]
+    ax3.scatter(x0[:, 0], x0[:, 1], c='green', s=60, alpha=0.7,
+               label='Original (t=0)', zorder=10)
+    ax3.scatter(backward_array[-1, :, 0], backward_array[-1, :, 1], 
+               c='blue', s=60, alpha=0.7, marker='x',
+               label='Reconstructed', zorder=10)
+    
+    # Lines connecting original to reconstructed
+    for i in range(min(20, x0.shape[0])):
+        ax3.plot([x0[i, 0], backward_array[-1, i, 0]],
+                [x0[i, 1], backward_array[-1, i, 1]],
+                'gray', alpha=0.3, linewidth=0.5)
+    
+    ax3.scatter(0, 0, c='gold', s=200, marker='*', 
+               edgecolors='black', linewidths=2, label='Target', zorder=50)
+    
+    error = np.mean(np.linalg.norm(x0 - backward_array[-1], axis=1))
+    ax3.set_xlabel('x', fontsize=12)
+    ax3.set_ylabel('y', fontsize=12)
+    ax3.set_title(f'Reconstruction (Error: {error:.3f})', 
+                 fontsize=14, fontweight='bold')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    ax3.axis('equal')
+    
+    plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    plt.show()

@@ -126,13 +126,14 @@ class SDESolver:
         # Computing the reverse drift: f(x,t) - g²∇log p_t(x)
         # matrix diffusion or identity matrix cases distinction
         drift = self.drift_fn(x, t)
-        g_squared = self.config.epsilon ** 2
-        reverse_drift = drift - g_squared * score
+        # Anderson's coefficient: g = √(2)*ε
+        g = self.config.epsilon * np.sqrt(2)
+        reverse_drift = drift - (g**2) * score
 
         # Computing the reverse diffusion term
         if self.config.epsilon > 0:
             dW = np.random.randn(n_points, self.config.dim)
-            diffusion = (dW @ self.diffusion_sqrt.T) * np.sqrt(dt)
+            diffusion = (dW @ self.diffusion_sqrt.T) * g * np.sqrt(dt)
         else:
             diffusion = 0.0 # ODE case
 
@@ -160,13 +161,13 @@ class SDESolver:
         x = x_T.copy()
 
          # Computing the reverse trajctories 
-        for step in range(self.config.n_steps):
-            t = step * self.config.dt 
-            x = self.backward_step(x, t, score_fn) # Computing state at time t - dt
+        for step in range(1, self.config.n_steps + 1):
+            t_curr = self.config.T - (step - 1) * self.config.dt
+            x = self.backward_step(x, t_curr, score_fn) # Computing state at time t - dt
 
-            if (step + 1) % save_every == 0:
+            if step % save_every == 0:
                 trajectory.append(x.copy())
-                times.append(t - self.config.dt)
+                times.append(self.config.T - step * self.config.dt)
 
         return trajectory, np.array(times) 
 
