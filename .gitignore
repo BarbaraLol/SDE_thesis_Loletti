@@ -17,6 +17,10 @@ dist/
 # Tests
 .pytest_cache/
 
+# Models
+.pt
+.pth 
+
 # Other
 *.DS_Store
 

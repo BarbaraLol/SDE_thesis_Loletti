@@ -112,24 +112,8 @@ def parse_arguments():
     parser.add_argument('--no_plot', action='store_true', help='Disable plots')
     
     # Forward SDE options
-    parser.add_argument('--random_times', action='store_true', 
-                       help='Sample forward trajectory at random times')
-    parser.add_argument('--n_snapshots', type=int, default=None,
-                       help='Number of snapshots for random time sampling')
-    
-    # Neural network training parameters
-    parser.add_argument('--n_epochs', type=int, default=1000,
-                       help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=64,
-                       help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                       help='Learning rate')
-    parser.add_argument('--sigma_dn', type=float, default=0.1,
-                       help='Denoising noise level')
-    parser.add_argument('--hidden_dim', type=int, default=128,
-                       help='Hidden dimension for neural network')
-    parser.add_argument('--n_layers', type=int, default=3,
-                       help='Number of layers in neural network')
+    parser.add_argument('--random_times', action='store_true', help='Sample forward trajectory at random times')
+    parser.add_argument('--n_snapshots', type=int, default=None, help='Number of snapshots for random time sampling')
     
     # Model saving/loading
     parser.add_argument('--save_model', type=str, default=None,
@@ -188,7 +172,7 @@ def main():
     
     # Load configuration
     config = load_config(args.config)
-    config = override_config_with_args(config, args)
+    # config = override_config_with_args(config, args)
     
     # Set random seed
     np.random.seed(config.seed)
@@ -313,16 +297,25 @@ def main():
                 plt.tight_layout()
                 plt.show()
         
-        # Save model if requested
-        if args.save_model:
-            dsm.save_model(args.save_model)
+        # Save model 
+        save_path = args.save_model if args.save_model else getattr(config.model, 'save_path', None)
+        if save_path:
+            import os
+            dirpath = os.path.dirname(save_path)
+            if dirpath:  # avoid os.makedirs('') if user gives just a filename
+                os.makedirs(dirpath, exist_ok=True)
+            dsm.save_model(save_path)
+            print(f"\n✓ Model saved to: {save_path}")
+        else:
+            print("\nℹNo save path provided (use --save_model or set config.model.save_path).")
+
         
         # Get score function
         score_fn = dsm.get_score_function()
         print(f"\n✓ Neural network score function ready!")
         
     except ImportError:
-        print("\n❌ Error: PyTorch not available.")
+        print("\n Error: PyTorch not available.")
         print("Please install PyTorch: pip install torch")
         print("\nCannot proceed without score function.")
         return
