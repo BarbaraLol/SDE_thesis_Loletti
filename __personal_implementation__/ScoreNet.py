@@ -1,18 +1,62 @@
 """
 Denoising Score Matching for learning the score function
-Compatible with both uniform and random time sampling
+Uses sinusoidal time embeddings for better temporal modeling
 """
 
+import math
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from typing import List, Callable
 from tqdm import tqdm
 
+
+class TimeEmbedding(nn.Module):
+    """
+    Sinusoidal time embedding (Transformer/DDPM-style)
+    Converts scalar time values into high-dimensional vectors
+    """
+    def __init__(self, embed_dim: int = 32, max_period: float = 10000.0):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.max_period = max_period
+        self.freqs = None  # Created lazily on first forward pass
+    
+    def forward(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            t: time values (batch_size,)
+        Returns:
+            embeddings: (batch_size, embed_dim)
+        """
+        if self.freqs is None:
+            # Create frequency values
+            half = self.embed_dim // 2
+            device = t.device
+            freqs = torch.exp(
+                -math.log(self.max_period) * torch.arange(0, half, device=device).float() / max(half - 1, 1)
+            )
+            self.freqs = freqs
+        
+        # Compute angles: (batch, half)
+        angles = t[:, None] * self.freqs[None, :]
+        
+        # Apply sin and cos
+        emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
+        
+        # Pad if embed_dim is odd
+        if emb.shape[1] < self.embed_dim:
+            emb = F.pad(emb, (0, self.embed_dim - emb.shape[1]), value=0.0)
+        
+        return emb
+
+
 class ScoreNet(nn.Module):
     """
     Neural network to learn the score function ∇log p_t(x)
+    Uses sinusoidal time embeddings for improved temporal modeling
     """
     def __init__(self, dim: int, hidden_dim: int = 128, n_layers: int = 3, 
                  time_embedding_dim: int = 32):
@@ -20,12 +64,8 @@ class ScoreNet(nn.Module):
         self.dim = dim
         self.time_embedding_dim = time_embedding_dim
         
-        # Time embedding network
-        self.time_embed = nn.Sequential(
-            nn.Linear(1, time_embedding_dim),
-            nn.SiLU(),
-            nn.Linear(time_embedding_dim, time_embedding_dim),
-        )
+        # Sinusoidal time embedding
+        self.time_embed = TimeEmbedding(embed_dim=time_embedding_dim)
         
         # Main network
         layers = []
@@ -51,9 +91,11 @@ class ScoreNet(nn.Module):
             score: ∇log p_t(x) with shape (batch_size, dim)
         """
         if t.dim() == 1:
-            t = t.unsqueeze(-1)
+            t_flat = t
+        else:
+            t_flat = t.squeeze(-1)
         
-        t_embed = self.time_embed(t)
+        t_embed = self.time_embed(t_flat)
         h = torch.cat([x, t_embed], dim=-1)
         score = self.network(h)
         return score
@@ -69,18 +111,20 @@ class DenoisingScoreMatcher:
                  dim: int,
                  device: str = 'cpu',
                  hidden_dim: int = 128,
-                 n_layers: int = 3):
+                 n_layers: int = 3,
+                 time_embedding_dim: int = 32):
         
         self.trajectory = forward_trajectory
         self.times = forward_times
         self.dim = dim
         self.device = device
         
-        # Initialize neural network
+        # Initialize neural network with sinusoidal time embeddings
         self.score_net = ScoreNet(
             dim=dim,
             hidden_dim=hidden_dim,
-            n_layers=n_layers
+            n_layers=n_layers,
+            time_embedding_dim=time_embedding_dim
         ).to(device)
         
         n_params = sum(p.numel() for p in self.score_net.parameters())
@@ -119,14 +163,6 @@ class DenoisingScoreMatcher:
                 dataset.append((pos, time))
         
         n_data = len(dataset)
-        
-        print(f"\nTraining Configuration:")
-        print(f"  • Dataset: {n_data} points")
-        print(f"  • Epochs: {n_epochs}")
-        print(f"  • Batch size: {batch_size}")
-        print(f"  • Learning rate: {lr}")
-        print(f"  • Denoising σ: {sigma_dn}")
-        print(f"  • Device: {self.device}\n")
         
         self.score_net.train()
         pbar = tqdm(range(n_epochs), disable=not verbose, desc="Training")

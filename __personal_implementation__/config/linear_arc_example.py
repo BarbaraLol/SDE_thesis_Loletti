@@ -7,16 +7,20 @@ def get_config():
     
     # Training
     config.training = training = ml_collections.ConfigDict()
-    training.batch_size = 64
-    training.n_epochs = 3000
-    training.lr = 1e-3
-    training.weight_decay = 0.0
-    training.sigma_dn = 0.1
+    training.batch_size = 128
+    training.n_epochs = 2000
+    training.lr = 3e-3
+    training.weight_decay = 1e-5
+    training.sigma_dn = 0.2
+
+    training.use_scheduler = True
+    training.scheduler_type = 'cosine'  # or 'step'
+    training.warmup_epochs = 50
 
     # Data / SDE Parameters 
     config.data = data = ml_collections.ConfigDict()
     data.dim = 2                # System dimensions (must be 2D for this drift)
-    data.n_points = 10000          
+    data.n_points = 5000          
     data.dt = 0.01              
     data.T = 20.0                
     data.epsilon = 0.15         # Noise
@@ -52,11 +56,12 @@ def get_config():
     
     # Optimization
     config.optim = optim = ml_collections.ConfigDict()
-    optim.optimizer = 'Adam'
+    optim.optimizer = 'AdamW'
     optim.lr = 1e-3
     optim.beta1 = 0.9
     optim.beta2 = 0.999
     optim.eps = 1e-8
+    optim.grad_clip = 1.0  # Gradient clipping
     
     # Sampling (for reverse SDE)
     config.sampling = sampling = ml_collections.ConfigDict()
