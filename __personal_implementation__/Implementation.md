@@ -25,3 +25,6 @@ quasipotenziale sempre tenendo in conisderazione la def originaria (in caso part
 - esiste un metodo certo per quantificare C(x), da p_T(x) = C(x)e^(-(1/epsilon))U(x)?
 - simulazione evoluzione forward verso un ventro attrattivo di punti distribuiti uniformemente su una curva in R^2 (rispettante Mainfold hypothesis)
 - disco con distribuzione di punti uniforme
+
+
+# Campionamento 

@@ -4,8 +4,6 @@ from SDE_integrator import SDEconfig, SDESolver
 import manifolds
 import drift_functions
 import visualization
-# from score_estimator import GaussianKDEEstimator, AdaptiveBandwidthKDEScoreEstimator
-from score_estimator import AdaptiveGaussianScoreEstimator, run_adaptive_backward
 
 def load_config(config_name: str):
     """Carica configurazione da file usando ml_collections"""
@@ -13,8 +11,10 @@ def load_config(config_name: str):
         from config.arc_example import get_config
     elif config_name == 'disk':
         from config.disk_example import get_config
+    elif config_name == 'linear_arc':
+        from config.linear_arc_example import get_config
     else:
-        raise ValueError(f"Config '{config_name}' non trovata. Usa 'arc' o 'disk'")
+        raise ValueError(f"Config '{config_name}' non trovata. Usa 'arc', 'disk', o 'linear_arc'")
     
     return get_config()
 
@@ -38,7 +38,12 @@ def create_drift_function(config):
     """Factory per creare la funzione di drift"""
     drift_type = config.drift.type
     
-    if drift_type == 'attractive':
+    if drift_type == 'linear':
+        # Linear drift: dx/dt = A·x with A = [[-a, b], [-b, -a]]
+        a = config.drift.a
+        b = config.drift.b
+        return lambda x, t: drift_functions.linear_drift(x, t, a=a, b=b)
+    elif drift_type == 'attractive':
         strength = config.drift.strength
         return lambda x, t: drift_functions.attractive_drift(x, t, strength=strength)
     elif drift_type == 'rotational':
@@ -81,45 +86,59 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
-    # Argomenti principali
-    parser.add_argument('--config', '-c', type=str, default='arc', choices=['arc', 'disk'], help='Configurazione')
-    parser.add_argument('--drift', '-d', type=str, default=None, help='Tipo di drift')
+    # Main arguments
+    parser.add_argument('--config', '-c', type=str, default='arc', 
+                       choices=['arc', 'disk', 'linear_arc'], help='Configuration')
+    parser.add_argument('--drift', '-d', type=str, default=None, help='Drift type')
     
-    # Parametri SDE
-    parser.add_argument('--epsilon', type=float, default=None, help='Rumore stocastico')
-    parser.add_argument('--T', type=float, default=None, help='Tempo finale')
+    # SDE parameters
+    parser.add_argument('--epsilon', type=float, default=None, help='Stochastic noise')
+    parser.add_argument('--T', type=float, default=None, help='Final time')
     parser.add_argument('--dt', type=float, default=None, help='Timestep')
     
-    # Parametri manifold
-    parser.add_argument('--n_points', type=int, default=None, help='Numero di punti')
-    parser.add_argument('--radius', type=float, default=None, help='Raggio manifold')
+    # Manifold parameters
+    parser.add_argument('--n_points', type=int, default=None, help='Number of points')
+    parser.add_argument('--radius', type=float, default=None, help='Manifold radius')
     
-    # Parametri drift
+    # Drift parameters
     parser.add_argument('--strength', type=float, default=None)
     parser.add_argument('--omega', type=float, default=None)
-    parser.add_argument('--attractive_strength', type=float, default=None)
-    parser.add_argument('--rotational_omega', type=float, default=None)
-    parser.add_argument('--a', type=float, default=None)
-    parser.add_argument('--b', type=float, default=None)
-    parser.add_argument('--lambda_stable', type=float, default=None)
-    parser.add_argument('--lambda_unstable', type=float, default=None)
-    parser.add_argument('--theta', type=float, default=None)
+    parser.add_argument('--a', type=float, default=None, help='Linear drift: contraction coeff')
+    parser.add_argument('--b', type=float, default=None, help='Linear drift: rotation coeff')
     
-    # Visualizzazione
+    # Visualization
     parser.add_argument('--save_every', type=int, default=None)
     parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--no_plot', action='store_true', help='Disabilita plot')
+    parser.add_argument('--no_plot', action='store_true', help='Disable plots')
+    
+    # Forward SDE options
+    parser.add_argument('--random_times', action='store_true', 
+                       help='Sample forward trajectory at random times')
+    parser.add_argument('--n_snapshots', type=int, default=None,
+                       help='Number of snapshots for random time sampling')
+    
+    # Neural network training parameters
+    parser.add_argument('--n_epochs', type=int, default=1000,
+                       help='Number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=64,
+                       help='Batch size for training')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                       help='Learning rate')
+    parser.add_argument('--sigma_dn', type=float, default=0.1,
+                       help='Denoising noise level')
+    parser.add_argument('--hidden_dim', type=int, default=128,
+                       help='Hidden dimension for neural network')
+    parser.add_argument('--n_layers', type=int, default=3,
+                       help='Number of layers in neural network')
+    
+    # Model saving/loading
+    parser.add_argument('--save_model', type=str, default=None,
+                       help='Path to save trained model')
+    parser.add_argument('--load_model', type=str, default=None,
+                       help='Path to load pretrained model')
     
     # Backward SDE
-    parser.add_argument("--do_reverse", action="store_true", help="Run reverse SDE")
-    parser.add_argument("--k_neighbors", type=int, default=None, help="K-NN for KDE")
-    parser.add_argument("--bandwidth", type=float, default=None, help="KDE bandwidth")
-    parser.add_argument("--adaptive_bandwidth", action="store_true", help="Use adaptive bandwidth")
-
-    # Number of points for backward sampling distribution
-    parser.add_argument("--adaptive_backward", action="store_true", help="Use adaptive backward (updates distribution at each step)")
-    parser.add_argument("--n_samples_per_point", type=int, default=10, help="Number of Gaussian samples per point")
-    parser.add_argument("--local_std", type=float, default=0.1, help="Std of local Gaussians")
+    parser.add_argument('--do_reverse', action='store_true', help='Run reverse SDE')
     
     return parser.parse_args()
 
@@ -142,20 +161,10 @@ def override_config_with_args(config, args):
         config.drift.strength = args.strength
     if args.omega is not None:
         config.drift.omega = args.omega
-    if args.attractive_strength is not None:
-        config.drift.attractive_strength = args.attractive_strength
-    if args.rotational_omega is not None:
-        config.drift.rotational_omega = args.rotational_omega
     if args.a is not None:
         config.drift.a = args.a
     if args.b is not None:
         config.drift.b = args.b
-    if args.lambda_stable is not None:
-        config.drift.lambda_stable = args.lambda_stable
-    if args.lambda_unstable is not None:
-        config.drift.lambda_unstable = args.lambda_unstable
-    if args.theta is not None:
-        config.drift.theta = args.theta
     if args.save_every is not None:
         config.visualization.save_every = args.save_every
     if args.seed is not None:
@@ -165,17 +174,19 @@ def override_config_with_args(config, args):
 
 
 def main():
-    """Main function per simulazione SDE Forward + Backward"""
+    """Main function for SDE simulation with score model training"""
     
-    # Parse argomenti
+    # Parse arguments
     args = parse_arguments()
     
     print(f"\n{'='*70}")
     print(f"  SDE FORWARD {'+ BACKWARD ' if args.do_reverse else ''}SIMULATION")
     print(f"  Configuration: {args.config.upper()}")
+    if args.random_times:
+        print(f"  Mode: RANDOM TIME SAMPLING")
     print(f"{'='*70}\n")
     
-    # Carica configurazione
+    # Load configuration
     config = load_config(args.config)
     config = override_config_with_args(config, args)
     
@@ -183,7 +194,7 @@ def main():
     np.random.seed(config.seed)
     print(f"Random seed: {config.seed}")
     
-    # Crea configurazione SDE
+    # Create SDE configuration
     sde_config = SDEconfig(
         dim=config.data.dim,
         T=config.data.T,
@@ -198,7 +209,7 @@ def main():
     print(f"  • n_steps: {sde_config.n_steps}")
     print(f"  • epsilon: {sde_config.epsilon}")
     
-    # Crea manifold iniziale
+    # Create initial manifold
     x0 = create_initial_manifold(config)
     print(f"\nInitial Manifold:")
     print(f"  • Type: {config.manifold.type.upper()}")
@@ -207,12 +218,12 @@ def main():
     if config.manifold.type == 'arc':
         print(f"  • Arc fraction: {config.manifold.arc_fraction}")
     
-    # Crea drift function
+    # Create drift function
     drift_type = config.drift.type
     drift_fn = create_drift_function(config)
     print(f"\nDrift: {drift_type.upper()}")
     
-    # Crea solver
+    # Create solver
     solver = SDESolver(sde_config, drift_fn)
     
     # ============= FORWARD SDE =============
@@ -220,12 +231,24 @@ def main():
     print(f"  FORWARD SDE (t: 0 → T)")
     print(f"{'→'*35}")
     
-    save_every = config.visualization.save_every
-    forward_traj, forward_times = solver.forward_trajectory(x0, save_every=save_every)
+    if args.random_times:
+        # Use random time sampling
+        n_snapshots = args.n_snapshots if args.n_snapshots else None
+        forward_traj, forward_times = solver.forward_trajectory_random_times(
+            x0, n_snapshots=n_snapshots
+        )
+    else:
+        # Use regular uniform time sampling
+        save_every = config.visualization.save_every
+        forward_traj, forward_times = solver.forward_trajectory(x0, save_every=save_every)
     
     print(f"✓ Forward completed!")
     print(f"  • Snapshots: {len(forward_traj)}")
-    print(f"  • Final time: {forward_times[-1]:.3f} s")
+    print(f"  • Time range: [{forward_times[0]:.3f}, {forward_times[-1]:.3f}]")
+    print(f"  • Final positions saved: {forward_traj[-1].shape}")
+    
+    # Save final positions for backward SDE
+    x_T = forward_traj[-1]
     
     # Plot forward
     if not args.no_plot:
@@ -234,14 +257,114 @@ def main():
             title=f"Forward SDE: {config.name} - {drift_type}"
         )
     
+    # ============= SCORE FUNCTION TRAINING =============
+    score_fn = None
+    
+    print(f"\n{'🧠'*35}")
+    print(f"  NEURAL NETWORK SCORE TRAINING")
+    print(f"{'🧠'*35}")
+    
+    try:
+        import torch
+        from ScoreNet import DenoisingScoreMatcher
+        
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"\nDevice: {device}")
+        
+        # Create denoising score matcher
+        dsm = DenoisingScoreMatcher(
+            forward_trajectory=forward_traj,
+            forward_times=forward_times,
+            dim=config.data.dim,
+            device=device,
+            hidden_dim=args.hidden_dim,
+            n_layers=args.n_layers
+        )
+        
+        # Load or train model
+        if args.load_model:
+            print(f"\nLoading pretrained model from {args.load_model}")
+            dsm.load_model(args.load_model)
+        else:
+            print(f"\nTraining neural network...")
+            print(f"  • Epochs: {args.n_epochs}")
+            print(f"  • Batch size: {args.batch_size}")
+            print(f"  • Learning rate: {args.lr}")
+            print(f"  • Denoising σ: {args.sigma_dn}")
+            
+            loss_history = dsm.train(
+                n_epochs=args.n_epochs,
+                batch_size=args.batch_size,
+                lr=args.lr,
+                sigma_dn=args.sigma_dn,
+                verbose=True
+            )
+            
+            # Plot training loss
+            if not args.no_plot:
+                import matplotlib.pyplot as plt
+                plt.figure(figsize=(10, 6))
+                plt.plot(loss_history, linewidth=2)
+                plt.xlabel('Epoch', fontsize=13)
+                plt.ylabel('Loss', fontsize=13)
+                plt.title('Training Loss', fontsize=14, fontweight='bold')
+                plt.grid(True, alpha=0.3)
+                plt.yscale('log')
+                plt.tight_layout()
+                plt.show()
+        
+        # Save model if requested
+        if args.save_model:
+            dsm.save_model(args.save_model)
+        
+        # Get score function
+        score_fn = dsm.get_score_function()
+        print(f"\n✓ Neural network score function ready!")
+        
+    except ImportError:
+        print("\n❌ Error: PyTorch not available.")
+        print("Please install PyTorch: pip install torch")
+        print("\nCannot proceed without score function.")
+        return
+    
     # ============= BACKWARD SDE =============
     if args.do_reverse:
-        if args.adaptive_backward:
-            # from score_estimator import run_adaptive_backward
-            run_adaptive_backward(config, drift_fn, x0, args)
-        else:
-            # Rimuovi tutto il resto (non ti serve più)
-            pass
+        print(f"\n{'←'*35}")
+        print(f"  BACKWARD SDE (t: T → 0)")
+        print(f"{'←'*35}")
+        
+        save_every = config.visualization.save_every
+        
+        print(f"\nRunning backward SDE...")
+        print(f"  • Starting from {x_T.shape[0]} points at t={forward_times[-1]:.2f}")
+        
+        backward_traj, backward_times = solver.backward_trajectory(
+            x_T, score_fn, save_every=save_every
+        )
+        
+        print(f"✓ Backward completed!")
+        print(f"  • Snapshots: {len(backward_traj)}")
+        print(f"  • Final time: {backward_times[-1]:.3f} s")
+        
+        # Compute reconstruction error
+        x_reconstructed = backward_traj[-1]
+        reconstruction_error = np.mean(np.linalg.norm(x0 - x_reconstructed, axis=1))
+        
+        print(f"\n{'='*70}")
+        print(f"  RECONSTRUCTION RESULTS")
+        print(f"{'='*70}")
+        print(f"  • Mean reconstruction error: {reconstruction_error:.4f}")
+        print(f"  • Initial spread: {np.mean(np.linalg.norm(x0, axis=1)):.4f}")
+        print(f"  • Final spread: {np.mean(np.linalg.norm(x_reconstructed, axis=1)):.4f}")
+        
+        # Plot comparison
+        if not args.no_plot:
+            visualization.plot_forward_backward_comparison(
+                forward_traj, forward_times,
+                backward_traj, backward_times,
+                x0,
+                title=f"Forward-Backward SDE: {config.name}"
+            )
     
     print("\n✓ Simulation completed!\n")
 

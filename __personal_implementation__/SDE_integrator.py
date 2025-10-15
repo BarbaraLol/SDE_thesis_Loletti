@@ -101,6 +101,41 @@ class SDESolver:
 
         return trajectory, np.array(times)   
 
+    def forward_trajectory_random_times(self, x0: np.ndarray, n_snapshots: int = None) -> Tuple[List[np.ndarray], np.ndarray]:
+        '''
+        Forward SDE integrator with RANDOM TIME SAMPLING
+        '''
+        if n_snapshots is None:
+            n_snapshots = max(10, self.config.n_steps // 10)
+        
+        # Sample random times uniformly from [0, T]
+        random_times = np.sort(np.random.uniform(0, self.config.T, n_snapshots))
+        
+        trajectory = []
+        x = x0.copy()
+        current_time = 0.0
+        time_idx = 0
+        
+        # print(f"\nForward SDE with random time sampling:")
+        # print(f"  • Target times: {n_snapshots} snapshots")
+        # print(f"  • Time range: [0, {self.config.T:.2f}]")
+        
+        # Integrate forward, saving at random times
+        for step in range(self.config.n_steps):
+            t = step * self.config.dt
+            x = self.forward_step(x, t)
+            current_time = t + self.config.dt
+            
+            # Check if we passed any target times
+            while time_idx < n_snapshots and current_time >= random_times[time_idx]:
+                # Save snapshot at this random time
+                trajectory.append(x.copy())
+                time_idx += 1
+        
+        print(f"  • Snapshots collected: {len(trajectory)}")
+        
+        return trajectory, random_times[:len(trajectory)]
+
     def backward_step(self, x: np.ndarray, t: float, score_fn: Callable[[np.ndarray, float], np.ndarray]) -> np.ndarray:
         '''
         Single reverse SDE step backward in time

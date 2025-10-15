@@ -1,4 +1,4 @@
-''' Points in a arc segment collapsing towards the center '''
+''' Arc example with LINEAR drift matrix A = [[-a, b], [-b, -a]] '''
 import ml_collections
 import torch
 
@@ -8,13 +8,13 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.batch_size = 64
-    training.n_epochs = 1000
-    training.lr = 1e-3          # Learning rate
+    training.n_epochs = 2000
+    training.lr = 1e-3
     training.weight_decay = 0.0
 
     # Data / SDE Parameters 
     config.data = data = ml_collections.ConfigDict()
-    data.dim = 2                # System dimentions
+    data.dim = 2                # System dimensions (must be 2D for this drift)
     data.n_points = 60          
     data.dt = 0.01              
     data.T = 5.0                
@@ -24,21 +24,18 @@ def get_config():
     config.manifold = manifold = ml_collections.ConfigDict()
     manifold.type = 'arc'       
     manifold.radius = 3.0       
-    manifold.arc_fraction = 0.15 
+    manifold.arc_fraction = 0.35 
     
-    # Drift 
+    # Drift: Linear matrix A = [[-a, b], [-b, -a]]
     config.drift = drift = ml_collections.ConfigDict()
-    drift.type = 'attractive'   
-    drift.strength = 0.8       # Attraction intensity towards the center
-    # other parameters (just if the problem requires them)
-    drift.omega = 1.0           # For rotational drift
-    drift.attractive_strength = 0.5  # For combined drift
-    drift.rotational_omega = 0.5     # For combined drift
-    drift.a = 1.0               # For double_well drift
-    drift.b = 1.0               # For double_well drift
-    drift.lambda_stable = 1.0   # For saddle drift
-    drift.lambda_unstable = 1.0 # For saddle drift
-    drift.theta = 1.0           # For ornstein_uhlenbeck drift
+    drift.type = 'linear_arc'       # NEW: linear drift
+    drift.a = 0.8               # Contraction coefficient (a > 0 → moves toward origin)
+    drift.b = 0.3               # Rotation coefficient (b ≠ 0 → rotation)
+    
+    # Note: This creates a spiral toward the origin!
+    # - If b = 0: pure contraction (like attractive drift)
+    # - If a = 0: pure rotation
+    # - Both nonzero: spiral inward
     
     # Visualization
     config.visualization = vis = ml_collections.ConfigDict()
@@ -73,7 +70,6 @@ def get_config():
     config.seed = 42
     config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    
-    config.name = 'Arc to Center'
+    config.name = 'Arc with Linear Drift (Spiral)'
     
     return config
