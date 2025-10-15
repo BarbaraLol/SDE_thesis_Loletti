@@ -2,6 +2,37 @@
 
 import numpy as np
 
+# Linear drift with matrix A
+def linear_drift(x: np.ndarray, t: float, a: float = 1.0, b: float = 0.0) -> np.ndarray:
+    '''
+    Linear drift function: dx/dt = A·x
+    
+    Matrix A = [[-a,  b ],
+                [-b, -a]]
+    
+    This creates a rotation + contraction system:
+    - a > 0: contraction toward origin
+    - b ≠ 0: rotation (counterclockwise if b > 0)
+    
+    Args:
+        x: current positions (n_points, 2)
+        t: current time
+        a: contraction coefficient (controls decay)
+        b: rotation coefficient (controls angular velocity)
+    
+    Returns:
+        drift field (n_points, 2)
+    '''
+    if x.shape[1] != 2:
+        raise ValueError("Linear drift with this A matrix only works in 2D")
+    
+    # Drift matrix A
+    A = np.array([[-a,  b],
+                  [-b, -a]])
+    
+    # Apply: f(x) = A·x for each point
+    return x @ A.T  # (n_points, 2) @ (2, 2)^T = (n_points, 2)
+
 # Linear attractive drift
 def attractive_drift(x: np.ndarray, t: float, strength: float = 1, center: np.ndarray = None) -> np.ndarray:
     '''

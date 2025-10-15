@@ -277,8 +277,8 @@ def main():
             forward_times=forward_times,
             dim=config.data.dim,
             device=device,
-            hidden_dim=args.hidden_dim,
-            n_layers=args.n_layers
+            hidden_dim=config.model.hidden_dim,
+            n_layers=config.model.n_layers
         )
         
         # Load or train model
@@ -287,16 +287,16 @@ def main():
             dsm.load_model(args.load_model)
         else:
             print(f"\nTraining neural network...")
-            print(f"  • Epochs: {args.n_epochs}")
-            print(f"  • Batch size: {args.batch_size}")
-            print(f"  • Learning rate: {args.lr}")
-            print(f"  • Denoising σ: {args.sigma_dn}")
+            print(f"  • Epochs: {config.training.n_epochs}")
+            print(f"  • Batch size: {config.training.batch_size}")
+            print(f"  • Learning rate: {config.training.lr}")
+            print(f"  • Denoising σ: {config.training.sigma_dn}")
             
             loss_history = dsm.train(
-                n_epochs=args.n_epochs,
-                batch_size=args.batch_size,
-                lr=args.lr,
-                sigma_dn=args.sigma_dn,
+                n_epochs=config.training.n_epochs,
+                batch_size=config.training.batch_size,
+                lr=config.training.lr,
+                sigma_dn=config.training.sigma_dn,
                 verbose=True
             )
             

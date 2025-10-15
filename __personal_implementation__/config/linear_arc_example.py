@@ -8,14 +8,14 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.batch_size = 64
-    training.n_epochs = 2000
+    training.n_epochs = 250
     training.lr = 1e-3
     training.weight_decay = 0.0
 
     # Data / SDE Parameters 
     config.data = data = ml_collections.ConfigDict()
     data.dim = 2                # System dimensions (must be 2D for this drift)
-    data.n_points = 60          
+    data.n_points = 10000          
     data.dt = 0.01              
     data.T = 5.0                
     data.epsilon = 0.15         # Noise
@@ -28,9 +28,9 @@ def get_config():
     
     # Drift: Linear matrix A = [[-a, b], [-b, -a]]
     config.drift = drift = ml_collections.ConfigDict()
-    drift.type = 'linear_arc'       # NEW: linear drift
-    drift.a = 0.8               # Contraction coefficient (a > 0 → moves toward origin)
-    drift.b = 0.3               # Rotation coefficient (b ≠ 0 → rotation)
+    drift.type = 'linear'       # NEW: linear drift
+    drift.a = 1.0               # Contraction coefficient (a > 0 → moves toward origin)
+    drift.b = 2.0               # Rotation coefficient (b ≠ 0 → rotation)
     
     # Note: This creates a spiral toward the origin!
     # - If b = 0: pure contraction (like attractive drift)

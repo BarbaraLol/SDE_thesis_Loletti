@@ -8,7 +8,7 @@ def get_config():
     # Training
     config.training = training = ml_collections.ConfigDict()
     training.batch_size = 64
-    training.n_epochs = 1000
+    training.n_epochs = 10000
     training.lr = 1e-3          # Learning rate
     training.weight_decay = 0.0
 
