@@ -87,8 +87,7 @@ def parse_arguments():
     )
     
     # Main arguments
-    parser.add_argument('--config', '-c', type=str, default='arc', 
-                       choices=['arc', 'disk', 'linear_arc'], help='Configuration')
+    parser.add_argument('--config', '-c', type=str, default='arc', choices=['arc', 'disk', 'linear_arc'], help='Configuration')
     parser.add_argument('--drift', '-d', type=str, default=None, help='Drift type')
     
     # SDE parameters
