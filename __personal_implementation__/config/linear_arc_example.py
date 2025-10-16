@@ -7,11 +7,11 @@ def get_config():
     
     # Training
     config.training = training = ml_collections.ConfigDict()
-    training.batch_size = 128
+    training.batch_size = 516
     training.n_epochs = 2000
-    training.lr = 3e-3
-    training.weight_decay = 1e-5
-    training.sigma_dn = 0.2
+    training.lr = 5e-4
+    training.weight_decay = 1e-4
+    training.sigma_dn = 0.05
 
     training.use_scheduler = True
     training.scheduler_type = 'cosine'  # or 'step'
@@ -49,8 +49,8 @@ def get_config():
     # Model
     config.model = model = ml_collections.ConfigDict()
     model.name = 'ScoreNet'  
-    model.hidden_dim = 128      
-    model.n_layers = 3          
+    model.hidden_dim = 516      
+    model.n_layers = 4          
     model.time_embedding_dim = 32  
     model.save_path = 'models/linear_arc_trained.pt'
     

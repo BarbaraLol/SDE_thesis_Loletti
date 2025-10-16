@@ -1,5 +1,6 @@
 """
 Denoising Score Matching for learning the score function
+Compatible with both uniform and random time sampling
 Uses sinusoidal time embeddings for better temporal modeling
 """
 
@@ -82,6 +83,17 @@ class ScoreNet(nn.Module):
         
         self.network = nn.Sequential(*layers)
         
+        # Initialize weights
+        self._initialize_weights()
+        
+    def _initialize_weights(self):
+        """Xavier initialization for better convergence"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
         Args:
@@ -136,6 +148,12 @@ class DenoisingScoreMatcher:
               lr: float = 1e-3,
               sigma_dn: float = 0.1,
               weight_decay: float = 0.0,
+              use_scheduler: bool = False,
+              scheduler_type: str = 'cosine',
+              warmup_epochs: int = 0,
+              grad_clip: float = None,
+              save_best: bool = True,
+              checkpoint_dir: str = 'checkpoints',
               verbose: bool = True) -> List[float]:
         """
         Train the score network using denoising score matching
@@ -148,21 +166,58 @@ class DenoisingScoreMatcher:
             lr: Learning rate
             sigma_dn: Denoising noise level
             weight_decay: L2 regularization
+            use_scheduler: Whether to use learning rate scheduling
+            scheduler_type: 'cosine' or 'step'
+            warmup_epochs: Number of warmup epochs before scheduling
+            grad_clip: Gradient clipping value (None = no clipping)
+            save_best: Save best model during training
+            checkpoint_dir: Directory for checkpoints
             verbose: Print progress
             
         Returns:
             loss_history: List of average losses per epoch
         """
-        optimizer = optim.Adam(self.score_net.parameters(), lr=lr, weight_decay=weight_decay)
+        # Create checkpoint directory
+        if save_best:
+            import os
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            best_model_path = os.path.join(checkpoint_dir, 'best_model.pt')
+            final_model_path = os.path.join(checkpoint_dir, 'final_model.pt')
+        
+        optimizer = optim.AdamW(self.score_net.parameters(), lr=lr, weight_decay=weight_decay)
+        
+        # Learning rate scheduler
+        scheduler = None
+        if use_scheduler:
+            if scheduler_type == 'cosine':
+                scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=lr*0.01)
+            elif scheduler_type == 'step':
+                scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=n_epochs//4, gamma=0.5)
+            elif scheduler_type == 'exponential':
+                scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
+        
         loss_history = []
+        best_loss = float('inf')
         
         # Create dataset: (x, t) pairs from all trajectory snapshots
         dataset = []
         for positions, time in zip(self.trajectory, self.times):
             for pos in positions:
-                dataset.append((pos, time))
+                dataset.append((pos, time))  # NO time normalization
         
         n_data = len(dataset)
+        
+        print(f"\nTraining Configuration:")
+        print(f"  • Dataset: {n_data} points")
+        print(f"  • Epochs: {n_epochs}")
+        print(f"  • Batch size: {batch_size}")
+        print(f"  • Learning rate: {lr}")
+        print(f"  • Denoising σ: {sigma_dn}")
+        print(f"  • Weight decay: {weight_decay}")
+        print(f"  • Scheduler: {scheduler_type if use_scheduler else 'None'}")
+        print(f"  • Grad clip: {grad_clip if grad_clip else 'None'}")
+        print(f"  • Save best: {save_best}")
+        print(f"  • Device: {self.device}\n")
         
         self.score_net.train()
         pbar = tqdm(range(n_epochs), disable=not verbose, desc="Training")
@@ -202,6 +257,11 @@ class DenoisingScoreMatcher:
                 # Backpropagation
                 optimizer.zero_grad()
                 loss.backward()
+                
+                # Gradient clipping
+                if grad_clip is not None:
+                    torch.nn.utils.clip_grad_norm_(self.score_net.parameters(), grad_clip)
+                
                 optimizer.step()
                 
                 epoch_loss += loss.item()
@@ -210,16 +270,67 @@ class DenoisingScoreMatcher:
             avg_loss = epoch_loss / n_batches
             loss_history.append(avg_loss)
             
+            # Save best model
+            if save_best and avg_loss < best_loss:
+                best_loss = avg_loss
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.score_net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': best_loss,
+                    'dim': self.dim,
+                }, best_model_path)
+                if verbose and epoch > 0:
+                    print(f"\n💾 Best model saved! Loss: {best_loss:.6f}")
+            
+            # Update learning rate
+            if scheduler is not None:
+                if epoch >= warmup_epochs:
+                    scheduler.step()
+            
             if verbose:
-                pbar.set_postfix({'loss': f'{avg_loss:.6f}'})
+                current_lr = optimizer.param_groups[0]['lr']
+                pbar.set_postfix({
+                    'loss': f'{avg_loss:.6f}', 
+                    'best': f'{best_loss:.6f}',
+                    'lr': f'{current_lr:.2e}'
+                })
             
             # Print periodic updates
             if (epoch + 1) % 100 == 0 and verbose:
-                print(f"\nEpoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.6f}")
+                print(f"\nEpoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.6f}, Best: {best_loss:.6f}, LR: {current_lr:.2e}")
+        
+        # Save final model
+        if save_best:
+            torch.save({
+                'epoch': n_epochs,
+                'model_state_dict': self.score_net.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss_history[-1],
+                'dim': self.dim,
+            }, final_model_path)
+            print(f"\n Final model saved to: {final_model_path}")
+            print(f" Best model saved to: {best_model_path}")
+            print(f"   Best loss: {best_loss:.6f}")
         
         self.score_net.eval()
         print(f"\n✓ Training completed! Final loss: {loss_history[-1]:.6f}")
         return loss_history
+    
+    def load_best_model(self, checkpoint_dir: str = 'checkpoints'):
+        """Load the best model from checkpoints"""
+        import os
+        best_model_path = os.path.join(checkpoint_dir, 'best_model.pt')
+        if os.path.exists(best_model_path):
+            checkpoint = torch.load(best_model_path, map_location=self.device)
+            self.score_net.load_state_dict(checkpoint['model_state_dict'])
+            self.score_net.eval()
+            print(f"✓ Best model loaded from {best_model_path}")
+            print(f"  Epoch: {checkpoint['epoch']}, Loss: {checkpoint['loss']:.6f}")
+            return checkpoint['loss']
+        else:
+            print(f"⚠ Best model not found at {best_model_path}")
+            return None
     
     def get_score_function(self) -> Callable:
         """

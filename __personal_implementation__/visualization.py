@@ -13,6 +13,9 @@ def plot_forward_trajectories(trajectory: List[np.ndarray], times: np.ndarray,
         times: array dei tempi corrispondenti
         title: titolo del plot
         figsize: dimensione della figura
+    
+    Returns:
+        fig: matplotlib figure object
     """
     fig, axes = plt.subplots(1, 3, figsize=figsize)
     
@@ -106,14 +109,27 @@ def plot_forward_trajectories(trajectory: List[np.ndarray], times: np.ndarray,
     
     plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
     plt.tight_layout()
-    plt.show()
+    
+    return fig
+
 
 def plot_forward_backward_comparison(forward_traj, forward_times,
                                      backward_traj, backward_times,
                                      x0, title="Forward-Backward SDE"):
-    """Plot comparison between forward and backward trajectories"""
-    import matplotlib.pyplot as plt
+    """
+    Plot comparison between forward and backward trajectories
     
+    Args:
+        forward_traj: Forward trajectory snapshots
+        forward_times: Forward trajectory times
+        backward_traj: Backward trajectory snapshots
+        backward_times: Backward trajectory times
+        x0: Initial positions
+        title: Plot title
+    
+    Returns:
+        fig: matplotlib figure object
+    """
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
     forward_array = np.array(forward_traj)
@@ -194,4 +210,5 @@ def plot_forward_backward_comparison(forward_traj, forward_times,
     
     plt.suptitle(title, fontsize=16, fontweight='bold', y=1.02)
     plt.tight_layout()
-    plt.show()
+    
+    return fig
